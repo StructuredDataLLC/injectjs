@@ -90,11 +90,13 @@ have to save the file if you make changes, but it will set the dirty flag.
 Examples
 --------
 
-   var ws = Application.ActiveWorkbook.Sheets.Add();
-   ws.Name = "Update";
-   ws.SelectionChanged = function(){
-      console.log( Application.ActiveCell.Address());
-   };
+```
+var ws = Application.ActiveWorkbook.Sheets.Add();
+ws.Name = "Update";
+ws.SelectionChange = function(){
+   console.log( Application.ActiveCell.Address());
+};
+```
 
 
 
