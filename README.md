@@ -9,8 +9,8 @@ Background
 Some of us have to use Excel a lot, and it is a good environment.  Scripting is a bit of a pain, though, 
 as the default scripting language is not very friendly.
 
-In the last version of Office, Microsoft added javascript-based "Apps". The [http://office.microsoft.com/en-us/store/api-tutorial-for-office-WA104077907.aspx?queryid=f7205dbe-1072-4b5c-a0da-4ddfa0be7043&css=excel&CTT=1](API sample app) 
-for Excel lets you write inline javascript (and it itself uses [http://codemirror.net/](codemirror) - very slick).
+In the last version of Office, Microsoft added javascript-based "Apps". The [API sample app] (http://office.microsoft.com/en-us/store/api-tutorial-for-office-WA104077907.aspx?queryid=f7205dbe-1072-4b5c-a0da-4ddfa0be7043&css=excel&CTT=1) 
+for Excel lets you write inline javascript (and it itself uses [codemirror](http://codemirror.net/) - very slick).
 But then it turns out that the Javascript API doesn't let you do much.  For example, you can read values from
 a spreadsheet, but not formulae.  
 
@@ -36,8 +36,8 @@ and it would be good to stop leaking references (marked).
 Dependencies
 ------------
 
-V8, built as shared libraries 
-Scintilla.net, dot-net wrapper for Scintilla
-Latest VSTO
++ V8, built as shared libraries 
++ Scintilla.net, dot-net wrapper for Scintilla
++ Latest VSTO
 
 
