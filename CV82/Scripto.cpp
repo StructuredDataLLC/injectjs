@@ -4,45 +4,16 @@
 #include "Scripto.h"
 #include "CVEventHandler.h"
 
+#include <comdef.h>
+
 #include <string>
 
 // CScripto
-
-
-
-v8::Handle<v8::Context> CreateContext(v8::Isolate* isolate) {
-
-	// Create a template for the global object.
-	v8::Handle<v8::ObjectTemplate> global = v8::ObjectTemplate::New(isolate);
-
-	/*
-	// Bind the global 'print' function to the C++ Print callback.
-	global->Set(v8::String::NewFromUtf8(isolate, "print"),
-	v8::FunctionTemplate::New(isolate, Print));
-	// Bind the global 'read' function to the C++ Read callback.
-	global->Set(v8::String::NewFromUtf8(isolate, "read"),
-	v8::FunctionTemplate::New(isolate, Read));
-	// Bind the global 'load' function to the C++ Load callback.
-	global->Set(v8::String::NewFromUtf8(isolate, "load"),
-	v8::FunctionTemplate::New(isolate, Load));
-	// Bind the 'quit' function
-	global->Set(v8::String::NewFromUtf8(isolate, "quit"),
-	v8::FunctionTemplate::New(isolate, Quit));
-	// Bind the 'version' function
-	global->Set(v8::String::NewFromUtf8(isolate, "version"),
-	v8::FunctionTemplate::New(isolate, Version));
-	*/
-
-	// return v8::Context::New(isolate, NULL, global);
-	return v8::Context::New(isolate, NULL, global);
-}
 
 // Extracts a C string from a V8 Utf8Value.
 const char* ToCString(const v8::String::Utf8Value& value) {
 	return *value ? *value : "<string conversion failed>";
 }
-
-
 
 void ReportException(v8::Isolate* isolate, v8::TryCatch* try_catch, std::string &strreport) {
 
@@ -158,6 +129,13 @@ void NarrowString(BSTR* bstr, std::string &str)
 	for (int i = 0; i < len; i++) str += (char)(wide.m_str[i] & 0xff);
 }
 
+void NarrowString2(LPCTSTR tstr, std::string &str)
+{
+	CComBSTR wide(tstr);
+	int len = wide.Length();
+	for (int i = 0; i < len; i++) str += (char)(wide.m_str[i] & 0xff);
+}
+
 void indexed_getter(uint32_t index, const v8::PropertyCallbackInfo<v8::Value>& info)
 {
 	v8::Isolate* isolate = v8::Isolate::GetCurrent();
@@ -245,6 +223,32 @@ void CScripto::SetRetVal(v8::Isolate* isolate, CComVariant &var, v8::ReturnValue
 	}
 }
 
+void FormatCOMError(std::string &target, HRESULT hr, const char *msg, const char *symbol = 0)
+{
+	char szException[1024];
+
+	_com_error err(hr);
+	LPCTSTR errMsg = err.ErrorMessage();
+
+	std::string str;
+
+	NarrowString2(errMsg, str);
+
+	target = msg ? msg : "COM Error";
+	if (symbol)
+	{
+		target += " (";
+		target += symbol;
+		target += "): ";
+	}
+
+	sprintf_s(szException, 1024, "0x%x: ", hr);
+
+	target += szException;
+	target += str.c_str();
+
+}
+
 void CScripto::Invoker(const v8::FunctionCallbackInfo<v8::Value>& args)
 {
 	v8::Isolate* isolate = v8::Isolate::GetCurrent();
@@ -266,53 +270,55 @@ void CScripto::Invoker(const v8::FunctionCallbackInfo<v8::Value>& args)
 
 	HRESULT hr;
 
-	if (propget)
+	
+	dispparams.cArgs = args.Length();
+	CComVariant *pcv = 0;
+	CComBSTR *pbstr = 0;
+
+	if (dispparams.cArgs > 0)
 	{
-		dispparams.cArgs = args.Length();
-		CComVariant *pcv = 0;
-		CComBSTR *pbstr = 0;
+		pcv = new CComVariant[dispparams.cArgs];
+		pbstr = new CComBSTR[dispparams.cArgs];
 
-		if (dispparams.cArgs > 0)
+		dispparams.rgvarg = pcv;
+		int arglen = args.Length();
+
+		for (int i = 0; i < arglen; i++)
 		{
-			pcv = new CComVariant[dispparams.cArgs];
-			pbstr = new CComBSTR[dispparams.cArgs];
+			int k = arglen - 1 - i;
 
-			dispparams.rgvarg = pcv;
-			for (int i = 0; i < args.Length(); i++)
+			if (args[i]->IsBoolean()) pcv[k] = args[i]->BooleanValue();
+			else if (args[i]->IsInt32()) pcv[k] = args[i]->Int32Value();
+			else if (args[i]->IsNumber()) pcv[k] = args[i]->NumberValue();
+			else if (args[i]->IsString())
 			{
-				if (args[i]->IsBoolean()) pcv[i] = args[i]->BooleanValue();
-				else if (args[i]->IsInt32()) pcv[i] = args[i]->Int32Value();
-				else if (args[i]->IsNumber()) pcv[i] = args[i]->NumberValue();
-				else if (args[i]->IsString())
-				{
-					v8::String::Utf8Value str(args[i]);
-					const char* cstr = ToCString(str);
-					pbstr[i] = cstr;
-					pcv[i].vt = VT_BSTR | VT_BYREF;
-					pcv[i].pbstrVal = &(pbstr[i]);
-				}
-				else if (args[i]->IsObject())
-				{
-					pcv[i].vt = VT_DISPATCH;
+				v8::String::Utf8Value str(args[i]);
+				const char* cstr = ToCString(str);
+				pbstr[k] = cstr;
+				pcv[k].vt = VT_BSTR | VT_BYREF;
+				pcv[k].pbstrVal = &(pbstr[k]);
+			}
+			else if (args[i]->IsObject())
+			{
+				pcv[k].vt = VT_DISPATCH;
 
-					external = v8::Handle<v8::External>::Cast(args[i]->ToObject()->GetInternalField(1));
-					pcv[i].pdispVal = (IDispatch*)(external->Value());
-				}
+				external = v8::Handle<v8::External>::Cast(args[i]->ToObject()->GetInternalField(1));
+				pcv[k].pdispVal = (IDispatch*)(external->Value());
 			}
 		}
-		hr = pdisp->Invoke(dispid, IID_NULL, 1033, DISPATCH_PROPERTYGET, &dispparams, &cvResult, NULL, NULL);
+	}
 
-		if (pcv) delete[] pcv;
-		if (pbstr) delete[] pbstr;
-	}
-	else
-	{
-		hr = pdisp->Invoke(dispid, IID_NULL, 1033, DISPATCH_METHOD, &dispparams, &cvResult, NULL, NULL);
-	}
+	hr = pdisp->Invoke(dispid, IID_NULL, 1033, propget ? DISPATCH_PROPERTYGET : DISPATCH_METHOD, &dispparams, &cvResult, NULL, NULL);
+
+	if (pcv) delete[] pcv;
+	if (pbstr) delete[] pbstr;
+
 
 	if (FAILED(hr))
 	{
-		isolate->ThrowException(v8::String::NewFromUtf8(isolate, "COM exception"));
+		std::string msg;
+		FormatCOMError(msg, hr, "COM Exception in Invoke");
+		isolate->ThrowException(v8::String::NewFromUtf8(isolate, msg.c_str()));
 	}
 	else
 	{
@@ -659,6 +665,9 @@ void CScripto::Getter(v8::Local<v8::String> property, const v8::PropertyCallback
 	hr = pdisp->GetTypeInfo(0, 0, &spTypeInfo);
 	bool found = false;
 
+	// FIXME: no need to iterate, you can use GetIDsOfNames from ITypeInfo 
+	// to get the memid, then use that to get the funcdesc.  much more efficient.
+	
 	if (SUCCEEDED(hr) && spTypeInfo)
 	{
 		TYPEATTR *pTatt = nullptr;
@@ -922,14 +931,9 @@ STDMETHODIMP CScripto::ExecString(BSTR* Script, BSTR* Result, VARIANT_BOOL* Succ
 	v8::Isolate* isolate = v8::Isolate::GetCurrent();
 	v8::HandleScope handle_scope(isolate);
 
-	//v8::Handle<v8::ObjectTemplate> global = v8::Handle<v8::ObjectTemplate>::New(isolate, _global);
-	//v8::Local<v8::ObjectTemplate> local = v8::Local<v8::ObjectTemplate>::New(isolate, _global);
-
-	//v8::Handle<v8::ObjectTemplate> global = v8::ObjectTemplate::New(isolate);
-
 	if (_context.IsEmpty()) InitContext();
 
-	v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, _context); //  = CreateContext(isolate);
+	v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, _context); 
 
 	CComBSTR wide(*Script);
 	std::string narrow;

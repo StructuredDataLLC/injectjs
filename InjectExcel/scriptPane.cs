@@ -231,5 +231,10 @@ namespace InjectExcel
                 if (null != node) editor.Text = node.FirstChild.NodeValue.ToString();
             }
         }
+
+        private void bClearLog_Click_1(object sender, EventArgs e)
+        {
+            logger.Text = "";
+        }
     }
 }

@@ -129,7 +129,7 @@
       </Command>
     </CustomBuildStep>
     <PostBuildEvent>
-      <Command>tlbimp $(OutDir)$(TargetName)$(TargetExt) /out:$(OutDir)$(TargetName)Lib$(TargetExt)</Command>
+      <Command>tlbimp $(OutDir)$(TargetName)$(TargetExt) /out:$(OutDir)$(TargetName)Lib$(TargetExt) &amp;&amp; regsvr32 /n /s /i:user $(OutDir)$(TargetName)$(TargetExt)</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>

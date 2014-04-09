@@ -29,10 +29,10 @@
         private void InitializeComponent()
         {
             this.splitContainer1 = new System.Windows.Forms.SplitContainer();
+            this.bClearLog = new System.Windows.Forms.Button();
+            this.bExecute = new System.Windows.Forms.Button();
             this.tbEditor = new System.Windows.Forms.TextBox();
             this.tbLog = new System.Windows.Forms.TextBox();
-            this.bExecute = new System.Windows.Forms.Button();
-            this.bClearLog = new System.Windows.Forms.Button();
             ((System.ComponentModel.ISupportInitialize)(this.splitContainer1)).BeginInit();
             this.splitContainer1.Panel1.SuspendLayout();
             this.splitContainer1.Panel2.SuspendLayout();
@@ -59,6 +59,27 @@
             this.splitContainer1.SplitterDistance = 466;
             this.splitContainer1.TabIndex = 0;
             // 
+            // bClearLog
+            // 
+            this.bClearLog.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
+            this.bClearLog.Location = new System.Drawing.Point(84, 440);
+            this.bClearLog.Name = "bClearLog";
+            this.bClearLog.Size = new System.Drawing.Size(75, 23);
+            this.bClearLog.TabIndex = 2;
+            this.bClearLog.Text = "Clear Log";
+            this.bClearLog.UseVisualStyleBackColor = true;
+            this.bClearLog.Click += new System.EventHandler(this.bClearLog_Click_1);
+            // 
+            // bExecute
+            // 
+            this.bExecute.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
+            this.bExecute.Location = new System.Drawing.Point(3, 440);
+            this.bExecute.Name = "bExecute";
+            this.bExecute.Size = new System.Drawing.Size(75, 23);
+            this.bExecute.TabIndex = 1;
+            this.bExecute.Text = "Execute";
+            this.bExecute.UseVisualStyleBackColor = true;
+            // 
             // tbEditor
             // 
             this.tbEditor.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom) 
@@ -75,31 +96,12 @@
             this.tbLog.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom) 
             | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
+            this.tbLog.Font = new System.Drawing.Font("Consolas", 9.75F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.tbLog.Location = new System.Drawing.Point(3, 3);
             this.tbLog.Multiline = true;
             this.tbLog.Name = "tbLog";
             this.tbLog.Size = new System.Drawing.Size(623, 117);
             this.tbLog.TabIndex = 1;
-            // 
-            // bExecute
-            // 
-            this.bExecute.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
-            this.bExecute.Location = new System.Drawing.Point(3, 440);
-            this.bExecute.Name = "bExecute";
-            this.bExecute.Size = new System.Drawing.Size(75, 23);
-            this.bExecute.TabIndex = 1;
-            this.bExecute.Text = "Execute";
-            this.bExecute.UseVisualStyleBackColor = true;
-            // 
-            // bClearLog
-            // 
-            this.bClearLog.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
-            this.bClearLog.Location = new System.Drawing.Point(84, 440);
-            this.bClearLog.Name = "bClearLog";
-            this.bClearLog.Size = new System.Drawing.Size(75, 23);
-            this.bClearLog.TabIndex = 2;
-            this.bClearLog.Text = "Clear Log";
-            this.bClearLog.UseVisualStyleBackColor = true;
             // 
             // scriptPane
             // 

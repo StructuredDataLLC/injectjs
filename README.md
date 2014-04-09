@@ -90,7 +90,7 @@ have to save the file if you make changes, but it will set the dirty flag.
 Examples
 --------
 
-```
+```javascript
 var ws = Application.ActiveWorkbook.Sheets.Add();
 ws.Name = "Update";
 ws.SelectionChange = function(){
@@ -98,7 +98,37 @@ ws.SelectionChange = function(){
 };
 ```
 
+```javascript
+function search_highlight()
+{
+	console.log( "Search: " + 
+		Application.Selection.Address().toString()
+			.replace( /\$/g, "" )
+			.replace( /\:/, " => "));
 
+	var min = Application.Evaluate( "=MIN(" + 
+		Application.Selection.Address() + ")" );
+	console.log( "Min is " + min );
+		
+	Application.Selection.Font.Color = 0;
+	var rng = Application.Selection.Find( min );
+	var count = 0;
+
+	if( typeof( rng ) != "undefined" ){ // need coffeescript
+		var start = rng.Address();
+		while( true ){
+			count++;
+			rng.Font.Color = 0x00e22b8a; // need enums
+			rng = Application.Selection.FindNext(rng);
+			if( rng.Address() == start ) break;
+		}
+	}
+
+	console.log( "Done; " + count + " found" );
+}
+
+search_highlight();
+```
 
 
 
