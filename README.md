@@ -41,8 +41,11 @@ but not String (or any other) indexes.  Iterators aren't supported, but you can 
 Missing
 -------
 
-Probably most important is autocompletion/tooltips in the editor to simplify writing.  Then automatically translating 
-enum values, at the moment they're returned as ints.
+Immediate pain points:
+
++ autocompletion/tooltips in the editor to 
++ translating enum values (at the moment they're returned as ints)
++ coffeescript 
 
 Dependencies
 ------------
@@ -52,6 +55,46 @@ Dependencies
 + Latest [VSTO](http://www.microsoft.com/en-us/download/details.aspx?id=40791)
 
 We can probably distribute all of this except for VSTO, let me know if you want a binary.
+
+
+
+Using
+=====
+
+You should know javascript and Excel's object model pretty well.  There is only one object exposed in the environment -
+Application.  This represents the Excel application.
+
+Objects
+-------
+
+All object descend from Application.  There are no "magic" fields like ActiveWorkbook (in VB that's just an alias for 
+Application.ActiveWorkbook).  And so on.
+
+Interaction
+-----------
+
+Standard javascript methods alert and confirm are supported.  There's a console facility but (atm) it only supports 
+log(string...)
+
+Running Scripts
+---------------
+
+Scripts are not automatically executed nor are they "live".  Too unstable at the moment.  To excute a script, click Execute.
+
+Loading and Saving
+------------------
+
+Scripts are stored in the document's XML.  It doesn't matter what the filetype is (xlsx, xlsm, &c).  Of course you
+have to save the file if you make changes, but it will set the dirty flag.
+
+Examples
+--------
+
+
+
+
+
+
 
 
 
