@@ -3,7 +3,7 @@ injectjs
 
 Javascript macros for Excel via V8
 
-background
+Background
 ----------
 
 Some of us have to use Excel a lot, and it is a good environment.  Scripting is a bit of a pain, though, 
