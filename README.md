@@ -47,8 +47,13 @@ enum values, at the moment they're returned as ints.
 Dependencies
 ------------
 
-+ V8, built as shared libraries 
-+ Scintilla.net, dot-net wrapper for Scintilla
-+ Latest VSTO
++ [V8](https://github.com/v8/v8), built as shared libraries 
++ [Scintilla.net](https://scintillanet.codeplex.com/), dot-net wrapper for [Scintilla](http://www.scintilla.org/)
++ Latest [VSTO](http://www.microsoft.com/en-us/download/details.aspx?id=40791)
+
+We can probably distribute all of this except for VSTO, let me know if you want a binary.
+
+
+
 
 
