@@ -33,6 +33,17 @@ won't load or save scripts automatically so it's not more than a toy in those en
 The script host side is a bit messy as I'm out of practice with COM/C++.  It can probably be sped up, and cleaned up,
 and it would be good to stop leaking references (marked).
 
+The COM objects are all auto-wrapped, so all methods and properties are available.  COM has a thing where 
+property accessors can have arguments (sometimes required).  We treat those as functions so they should work as 
+expected.  Events work, possibly not un-hooking correctly.  Indexed accessors are supported for integer indexing,
+but not String (or any other) indexes.  Iterators aren't supported, but you can loop.
+
+Missing
+-------
+
+Probably most important is autocompletion/tooltips in the editor to simplify writing.  Then automatically translating 
+enum values, at the moment they're returned as ints.
+
 Dependencies
 ------------
 
