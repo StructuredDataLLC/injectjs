@@ -1,0 +1,43 @@
+injectjs
+========
+
+Javascript macros for Excel via V8
+
+background
+----------
+
+Some of us have to use Excel a lot, and it is a good environment.  Scripting is a bit of a pain, though, 
+as the default scripting language is not very friendly.
+
+In the last version of Office, Microsoft added javascript-based "Apps". The [http://office.microsoft.com/en-us/store/api-tutorial-for-office-WA104077907.aspx?queryid=f7205dbe-1072-4b5c-a0da-4ddfa0be7043&css=excel&CTT=1](API sample app) 
+for Excel lets you write inline javascript (and it itself uses [http://codemirror.net/](codemirror) - very slick).
+But then it turns out that the Javascript API doesn't let you do much.  For example, you can read values from
+a spreadsheet, but not formulae.  
+
+So OK, they designed it for a particular purpose (seems to be doing design and layout), and not as a general
+scripting engine.  But since everything else is embedding v8, it seemed like the thing to do.
+
+Is this a good idea?
+--------------------
+
+Possibly not.  Scripting in Excel has always been a security problem, and this just makes things worse.  At the 
+moment, we're not supporting any commonjs-type extensions, so actual damage abililty is limited to what's built in
+to Excel (which is a lot), but it won't run arbitrary extensions.  
+
+Work in progress
+----------------
+
+This is very much a work in progress.  It's actually quite usable in 2013.  It kind of works in 2007 & 2010, but it
+won't load or save scripts automatically so it's not more than a toy in those environments.
+
+The script host side is a bit messy as I'm out of practice with COM/C++.  It can probably be sped up, and cleaned up,
+and it would be good to stop leaking references (marked).
+
+Dependencies
+------------
+
+V8, built as shared libraries 
+Scintilla.net, dot-net wrapper for Scintilla
+Latest VSTO
+
+
