@@ -1,0 +1,16 @@
+HKCR
+{
+	NoRemove CLSID
+	{
+		ForceRemove {76CEE870-E6E0-4B70-85C7-5EA200F6D6DA} = s 'CVEventHandler Class'
+		{
+			ForceRemove Programmable
+			InprocServer32 = s '%MODULE%'
+			{
+				val ThreadingModel = s 'Apartment'
+			}
+			TypeLib = s '{EEAEE929-A29C-48AC-A15E-92CE89881F80}'
+			Version = s '1.0'
+		}
+	}
+}

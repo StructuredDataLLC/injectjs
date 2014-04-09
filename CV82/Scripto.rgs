@@ -1,0 +1,16 @@
+HKCR
+{
+	NoRemove CLSID
+	{
+		ForceRemove {03A48679-F8A2-4AFE-8D38-428C2191C0F7} = s 'Scripto Class'
+		{
+			ForceRemove Programmable
+			InprocServer32 = s '%MODULE%'
+			{
+				val ThreadingModel = s 'Apartment'
+			}
+			TypeLib = s '{EEAEE929-A29C-48AC-A15E-92CE89881F80}'
+			Version = s '1.0'
+		}
+	}
+}

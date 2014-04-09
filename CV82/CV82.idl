@@ -1,0 +1,64 @@
+// CV82.idl : IDL source for CV82
+//
+
+// This file will be processed by the MIDL tool to
+// produce the type library (CV82.tlb) and marshalling code.
+
+import "oaidl.idl";
+import "ocidl.idl";
+
+[
+	object,
+	uuid(9038E84A-1885-4A40-8B3D-9D967AF40EDF),
+	dual,
+	nonextensible,
+	pointer_default(unique)
+]
+interface IScripto : IDispatch{
+	[id(10)] HRESULT SetDispatch([in] IDispatch* Dispatch, [in] BSTR* Name);
+	[id(11)] HRESULT ExecString([in] BSTR* Script, [out] BSTR* Result, [out, retval] VARIANT_BOOL* Success);
+};
+[
+	object,
+	uuid(CB998305-B733-429F-A30D-A865B86F0BB8),
+	dual,
+	nonextensible,
+	pointer_default(unique)
+]
+interface ICVEventHandler : IDispatch{
+};
+[
+	uuid(EEAEE929-A29C-48AC-A15E-92CE89881F80),
+	version(1.0),
+]
+library CV82Lib
+{
+	importlib("stdole2.tlb");
+	[
+		uuid(325D8FE4-F4A1-429F-B493-851099B100FD)		
+	]
+	dispinterface _IScriptoEvents
+	{
+		properties:
+		methods:
+			[id(1)] HRESULT OnConsolePrint([in] BSTR* Msg, [in] long Flags);
+			[id(2)] HRESULT OnAlert([in] BSTR* Msg);
+			[id(3)] HRESULT OnConfirm([in] BSTR* Msg, [out,retval] VARIANT_BOOL *Rslt);
+	};
+	[
+		uuid(03A48679-F8A2-4AFE-8D38-428C2191C0F7)		
+	]
+	coclass Scripto
+	{
+		[default] interface IScripto;
+		[default, source] dispinterface _IScriptoEvents;
+	};
+	[
+		uuid(76CEE870-E6E0-4B70-85C7-5EA200F6D6DA)		
+	]
+	coclass CVEventHandler
+	{
+		[default] interface ICVEventHandler;
+	};
+};
+
