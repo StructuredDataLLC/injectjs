@@ -80,7 +80,6 @@
             this.bClearLog.TabIndex = 2;
             this.bClearLog.Text = "Clear Log";
             this.bClearLog.UseVisualStyleBackColor = true;
-            this.bClearLog.Click += new System.EventHandler(this.bClearLog_Click_1);
             // 
             // bExecute
             // 

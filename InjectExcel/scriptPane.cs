@@ -137,7 +137,7 @@ namespace InjectExcel
                     if (d.ContainsKey("source") && masterDict.ContainsKey(d["source"].ToString()))
                     {
                         Dictionary<string, object> d2 = Candidates(d["source"].ToString(), null);
-                        foreach (string k2 in d2.Keys) dict.Add(k2, d2[k2]);
+                        foreach (string k2 in d2.Keys) if( !dict.ContainsKey( k2 )) dict.Add(k2, d2[k2]);
                     }
                     return dict;
                 }
@@ -231,11 +231,6 @@ namespace InjectExcel
         {
             if (null == Globals.ThisAddIn.Application.ActiveWorkbook)
                 Globals.ThisAddIn.Application.ActiveWorkbook.Saved = false;
-        }
-
-        void bClearLog_Click(object sender, EventArgs e)
-        {
-            throw new NotImplementedException();
         }
 
         void taskPane_Load(object sender, EventArgs e)
@@ -507,7 +502,7 @@ namespace InjectExcel
             }
         }
 
-        private void bClearLog_Click_1(object sender, EventArgs e)
+        private void bClearLog_Click(object sender, EventArgs e)
         {
             logger.Text = "";
         }

@@ -1098,6 +1098,7 @@ void mapCoClass(std::string &output, std::string &name, CComPtr<ITypeInfo> typei
 		{
 			if (SUCCEEDED(spTypeInfo2->GetDocumentation(-1, &bstrName, 0, 0, 0)))
 			{
+				elementname.clear();
 				NarrowString(&bstrName, elementname);
 				if (lImplTypeFlags == 1) ss << "\t\"default\": \"" << elementname << "\"";
 				else ss << "\t\"source\": \"" << elementname << "\"";
