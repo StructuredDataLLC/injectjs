@@ -6,17 +6,17 @@ Javascript macros for Excel via V8
 Background
 ----------
 
-Some of us have to use Excel a lot, and it is a good environment.  Scripting is a bit of a pain, though, 
+Some of us use Excel a lot, and it is a good environment.  Scripting is a bit of a pain, though, 
 as the default scripting language is not very friendly.
 
 In the last version of Office, Microsoft added javascript-based "Apps". The [API sample app] (http://office.microsoft.com/en-us/store/api-tutorial-for-office-WA104077907.aspx?queryid=f7205dbe-1072-4b5c-a0da-4ddfa0be7043&css=excel&CTT=1) 
 for Excel lets you write inline javascript (and it itself uses [codemirror](http://codemirror.net/) - very slick).
-But then it turns out that the Javascript API doesn't let you do much.  For example, you can read values from
-a spreadsheet, but not formulae.  
+But then it turns out that the Javascript API doesn't let you do much.  For example, you can 
+read values from a spreadsheet, but not formulas (not formulae, either).  
 
 So OK, they designed it for a particular purpose (seems to be doing design and layout), and not as a general
-scripting engine.  But since everything else is embedding v8, it seemed like the thing to do.  Also we can go
-backwards a bit farther, with support for 2007 and up.
+scripting engine.  But once we got a taste for it, we decided that this was what we wanted.  And since everything 
+else is embedding v8, it seemed like the thing to do. 
 
 Is this a good idea?
 --------------------
@@ -42,9 +42,9 @@ Missing
 
 Immediate pain points:
 
-+ autocompletion/tooltips in the editor to 
-+ translating enum values (at the moment they're returned as ints)
-+ coffeescript 
++ better autocompletion/tooltips
++ resource utilization
++ file (and module) management
 
 Dependencies
 ------------
