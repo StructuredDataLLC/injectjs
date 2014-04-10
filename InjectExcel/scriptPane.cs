@@ -251,13 +251,9 @@ namespace InjectExcel
 
         void ConstructTypeMap()
         {
-            // Type t = DispatchUtility.GetType(Globals.ThisAddIn.Application, false);
-            //           logMessage("T: " + t.ToString());
             string map = scripto.MapTypeLib(Globals.ThisAddIn.Application);
             System.Web.Script.Serialization.JavaScriptSerializer serializer = new JavaScriptSerializer();
             masterDict = (Dictionary<string, object>)(serializer.Deserialize<Object>(map));
-
-            logMessage(map);
         }
 
         void app_WorkbookBeforeSave(Excel.Workbook Wb, bool SaveAsUI, ref bool Cancel)

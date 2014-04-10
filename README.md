@@ -15,7 +15,8 @@ But then it turns out that the Javascript API doesn't let you do much.  For exam
 a spreadsheet, but not formulae.  
 
 So OK, they designed it for a particular purpose (seems to be doing design and layout), and not as a general
-scripting engine.  But since everything else is embedding v8, it seemed like the thing to do.
+scripting engine.  But since everything else is embedding v8, it seemed like the thing to do.  Also we can go
+backwards a bit farther, with support for 2007 and up.
 
 Is this a good idea?
 --------------------
@@ -27,16 +28,14 @@ to Excel (which is a lot), but it won't run arbitrary extensions.
 Work in progress
 ----------------
 
-This is very much a work in progress.  It's actually quite usable in 2013.  It kind of works in 2007 & 2010, but it
-won't load or save scripts automatically so it's not more than a toy in those environments.
+This is very much a work in progress.  It has bugs and (likely) resource leaks.
 
-The script host side is a bit messy as I'm out of practice with COM/C++.  It can probably be sped up, and cleaned up,
-and it would be good to stop leaking references (marked).
-
-The COM objects are all auto-wrapped, so all methods and properties are available.  COM has a thing where 
-property accessors can have arguments (sometimes required).  We treat those as functions so they should work as 
-expected.  Events work, possibly not un-hooking correctly.  Indexed accessors are supported for integer indexing,
-but not String (or any other) indexes.  Iterators aren't supported, but you can loop.
+It's actually quite usable in Excels 2007, 2010 and 2013. The COM objects are all auto-wrapped (late bound), 
+so all methods and properties are available.  COM has a thing where property accessors can have arguments 
+(sometimes required).  We treat those as functions so they should work as expected.  Events work, possibly 
+not un-hooking correctly.  Indexed accessors are supported for integer indexing,
+and you can use the Item property (method) for string indexes.  Iterators aren't supported, but you 
+can loop.
 
 Missing
 -------
@@ -61,12 +60,15 @@ We can probably distribute all of this except for VSTO, let me know if you want 
 Using
 =====
 
-You should know javascript and Excel's object model pretty well.  There is only one object exposed in the environment -
-Application.  This represents the Excel application.  All object descend from Application.  There are no "magic" fields 
-like ActiveWorkbook (in VB that's just an alias for Application.ActiveWorkbook).  And so on.
+You need to know javascript and Excel's object model pretty well.  There is only one object exposed in the environment -
+"Application", representing the Excel application object.  All other object descend from Application.  There are no 
+"magic" fields like ActiveWorkbook (in VB that's just an alias for Application.ActiveWorkbook).  
 
-Interaction
------------
+Enums are exposed in the global namespace, so it's legal to say something like
+
+Application.ActiveCell.Interior.Color = XlRgbColor.rgbCrimson;
+
+Enums and the primary object are hinted in the editor, still working on hinting scoped fields.
 
 Standard javascript methods alert and confirm are supported.  There's a console facility but (atm) it only supports 
 log(string...)
@@ -86,9 +88,6 @@ Examples
 --------
 
 ```javascript
-
-// add a sheet; rename it; and log all clicks.
-
 var ws = Application.ActiveWorkbook.Sheets.Add();
 ws.Name = "Update";
 ws.SelectionChange = function(){
@@ -97,10 +96,6 @@ ws.SelectionChange = function(){
 ```
 
 ```javascript
-
-// find the lowest value(s) in the selection, 
-// and color them purple.  with some logging.
-
 function search_highlight()
 {
 	console.log( "Search: " + 
@@ -120,7 +115,8 @@ function search_highlight()
 		var start = rng.Address();
 		while( true ){
 			count++;
-			rng.Font.Color = 0x00e22b8a; // need enums
+			rng.Font.Color = XlRgbColor.rgbWhiteSmoke
+			rng.Interior.Color = XlRgbColor.rgbDarkRed;
 			rng = Application.Selection.FindNext(rng);
 			if( rng.Address() == start ) break;
 		}
