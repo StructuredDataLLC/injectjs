@@ -49,7 +49,7 @@ Immediate pain points:
 Dependencies
 ------------
 
-+ [V8](https://github.com/v8/v8), built as shared libraries 
++ [V8](https://github.com/v8/v8), built as shared libraries.  You will need the libs to link and the headers to build.
 + [Scintilla.net](https://scintillanet.codeplex.com/), dot-net wrapper for [Scintilla](http://www.scintilla.org/)
 + Latest [VSTO](http://www.microsoft.com/en-us/download/details.aspx?id=40791)
 
