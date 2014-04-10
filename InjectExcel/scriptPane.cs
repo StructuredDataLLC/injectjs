@@ -160,11 +160,25 @@ namespace InjectExcel
         {
             int col;
             string line = editor.GetCurrentLine(out col);
+            List< string > list = new List<string>();
 
-            if (e.KeyChar == '.')
+            if( e.KeyChar == 'l')
+            {
+                Regex rex = new Regex(@"(?:^|[\W\s])Xl*");
+                line = line.Substring(0, col);
+                Match m = rex.Match(line);
+                if (m.Success)
+                {
+                    foreach( string key in masterDict.Keys )
+                    {
+                        if (key.StartsWith("Xl")) list.Add(key);
+                    }
+                }
+            }
+            else if (e.KeyChar == '.')
             {
                 line = line.Substring(0, col);
-                Regex rex = new Regex( @"[\w\d\._\(\)]+");
+                Regex rex = new Regex( @"[\w\d\._\(\)]+$");
                 Regex rexUnfunc = new Regex(@"\(\.*?(?:\)|$)");
                 Match m = rex.Match(line);
                 if( m.Success )
@@ -187,28 +201,28 @@ namespace InjectExcel
                     // if we have a type, find candidates
 
                     Dictionary<string, object> dict = Candidates(root, null);
-                    List<string> list = new List<string>();
                     foreach (string key in (dict.Keys)) list.Add(key);
 
-                    list.Sort();
-                    editor.AutoComplete.List = list;
-
-                    Timer t = new Timer();
-
-                    t.Interval = 100;
-                    t.Tag = editor;
-                    t.Tick += new EventHandler((obj, ev) =>
-                    {
-                        editor.AutoComplete.Show();
-                        t.Stop();
-                        t.Enabled = false;
-                        t.Dispose();
-                    });
-                    t.Start();
-
-                    // editor.AutoComplete.Show();
-
                 }
+            }
+
+            if( list.Count > 0 )
+            {
+                list.Sort();
+                editor.AutoComplete.List = list;
+
+                Timer t = new Timer();
+
+                t.Interval = 100;
+                t.Tag = editor;
+                t.Tick += new EventHandler((obj, ev) =>
+                {
+                    editor.AutoComplete.Show();
+                    t.Stop();
+                    t.Enabled = false;
+                    t.Dispose();
+                });
+                t.Start();
             }
 
         }

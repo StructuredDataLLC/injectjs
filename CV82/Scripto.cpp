@@ -1113,13 +1113,17 @@ void mapCoClass(std::string &output, std::string &name, CComPtr<ITypeInfo> typei
 
 }
 
-void mapEnum(std::string &output, std::string &name, CComPtr<ITypeInfo> typeinfo, TYPEATTR *pTatt)
+void mapEnum(std::string &output, std::string &name, CComPtr<ITypeInfo> typeinfo, TYPEATTR *pTatt, v8::Handle< v8::Context > context )
 {
 	std::stringstream ss;
 
 	VARDESC *vd = 0;
 	CComBSTR bstrName;
 	std::string elementname;
+
+	v8::Isolate * isolate = context->GetIsolate();
+	v8::Local<v8::ObjectTemplate> tmpl = v8::ObjectTemplate::New(isolate);
+
 
 	ss << "\"" << name.c_str() << "\": { \n";
 	ss << "\t\"type\": \"enum\", \n";
@@ -1147,6 +1151,9 @@ void mapEnum(std::string &output, std::string &name, CComPtr<ITypeInfo> typeinfo
 				ss << vd->lpvarValue->intVal;
 				if (u < pTatt->cVars - 1) ss << ",";
 				ss << "\n";
+
+				tmpl->Set(v8::String::NewFromUtf8(isolate, elementname.c_str()), v8::Integer::New(isolate, vd->lpvarValue->intVal));
+
 			}
 			typeinfo->ReleaseVarDesc(vd);
 		}
@@ -1154,6 +1161,9 @@ void mapEnum(std::string &output, std::string &name, CComPtr<ITypeInfo> typeinfo
 
 	ss << "\t}\n}";
 	output = ss.str();
+
+	v8::Local<v8::Object> inst = tmpl->NewInstance();
+	context->Global()->Set(v8::String::NewFromUtf8(isolate, name.c_str()), inst);
 
 	// printf("%s\n", output.c_str());
 
@@ -1171,8 +1181,17 @@ STDMETHODIMP CScripto::MapTypeLib(IDispatch *Dispatch, BSTR *Description)
 	
 	HRESULT hr = Dispatch->GetTypeInfo(0, 0, &spTypeInfo);
 	std::stringstream composite;
-
 	std::list<std::string> elements;
+
+	// init script: why? so we can map enums
+	
+	v8::Isolate* isolate = v8::Isolate::GetCurrent();
+	v8::Locker locker(isolate);
+	v8::HandleScope handle_scope(isolate);
+	if (_context.IsEmpty()) InitContext();
+	v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, _context);
+
+	context->Enter();
 
 	// get type lib
 
@@ -1207,7 +1226,7 @@ STDMETHODIMP CScripto::MapTypeLib(IDispatch *Dispatch, BSTR *Description)
 					switch (tk)
 					{
 					case TKIND_ENUM:
-						mapEnum(tmpstr, tname, spTypeInfo2, pTatt);
+						mapEnum(tmpstr, tname, spTypeInfo2, pTatt, context);
 						composite << tmpstr;
 						break;
 
@@ -1247,6 +1266,8 @@ STDMETHODIMP CScripto::MapTypeLib(IDispatch *Dispatch, BSTR *Description)
 
 	bstrComposite.Append("\n}\n");
 	bstrComposite.CopyTo(Description );
+
+	context->Exit();
 
 	return S_OK;
 }
