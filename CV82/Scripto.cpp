@@ -10,26 +10,25 @@
 
 // CScripto
 
-// Extracts a C string from a V8 Utf8Value.
+//-----------------------------------------------------------
+// functions from the v8 samples (shell.cc)
+//-----------------------------------------------------------
+
 const char* ToCString(const v8::String::Utf8Value& value) {
 	return *value ? *value : "<string conversion failed>";
 }
 
-void ReportException(v8::Isolate* isolate, v8::TryCatch* try_catch, std::string &strreport) {
+void FormatException(v8::Isolate* isolate, v8::TryCatch* try_catch, std::string &strreport) {
 
 	v8::HandleScope handle_scope(isolate);
 	v8::String::Utf8Value exception(try_catch->Exception());
 	const char* exception_string = ToCString(exception);
 	v8::Handle<v8::Message> message = try_catch->Message();
 	if (message.IsEmpty()) {
-		// V8 didn't provide any extra information about this error; just
-		// print the exception.
-		//fprintf(stderr, "%s\n", exception_string);
 		strreport = exception_string;
 		strreport.append("\r\n");
 	}
 	else {
-		// Print (filename):(line number): (message).
 		v8::String::Utf8Value filename(message->GetScriptResourceName());
 		const char* filename_string = ToCString(filename);
 		int linenum = message->GetLineNumber();
@@ -40,87 +39,28 @@ void ReportException(v8::Isolate* isolate, v8::TryCatch* try_catch, std::string 
 		strreport.append(exception_string);
 		strreport.append("\r\n");
 
-		//fprintf(stderr, "%s:%i: %s\n", filename_string, linenum, exception_string);
-
 		// Print line of source code.
 		v8::String::Utf8Value sourceline(message->GetSourceLine());
 		const char* sourceline_string = ToCString(sourceline);
 
-		//fprintf(stderr, "%s\n", sourceline_string);
 		strreport.append(sourceline_string);
 		strreport.append("\r\n");
 
 		// Print wavy underline (GetUnderline is deprecated).
 		int start = message->GetStartColumn();
 		for (int i = 0; i < start; i++) {
-			//fprintf(stderr, " ");
 			strreport.append(" ");
 		}
 		int end = message->GetEndColumn();
 		for (int i = start; i < end; i++) {
-			//fprintf(stderr, "^");
 			strreport.append("^");
 		}
-
-		/*
-		//fprintf(stderr, "\r\n");
-		strreport.append("\r\n");
-		v8::String::Utf8Value stack_trace(try_catch->StackTrace());
-		if (stack_trace.length() > 0) {
-			const char* stack_trace_string = ToCString(stack_trace);
-			//fprintf(stderr, "%s\n", stack_trace_string);
-			strreport.append(stack_trace_string);
-			strreport.append("\r\n");
-		}
-		*/
 	}
 }
 
-// Executes a string within the current v8 context.
-bool ExecuteString(v8::Isolate* isolate,
-	v8::Handle<v8::String> source,
-	v8::Handle<v8::Value> name,
-	bool print_result,
-	bool report_exceptions,
-	std::string &result_str) {
-
-	v8::HandleScope handle_scope(isolate);
-	v8::TryCatch try_catch;
-	v8::ScriptOrigin origin(name);
-	v8::Handle<v8::Script> script = v8::Script::Compile(source);// , &origin);
-	if (script.IsEmpty()) {
-		// Print errors that happened during compilation.
-		if (report_exceptions)
-			ReportException(isolate, &try_catch, result_str);
-		return false;
-	}
-	else {
-		v8::Handle<v8::Value> result = script->Run();
-		if (result.IsEmpty()) {
-			//assert(try_catch.HasCaught());
-			// Print errors that happened during execution.
-			if (report_exceptions)
-				ReportException(isolate, &try_catch, result_str);
-			return false;
-		}
-		else {
-			//assert(!try_catch.HasCaught());
-			if (print_result && !result->IsUndefined()) {
-				// If all went well and the result wasn't undefined then print
-				// the returned value.
-				v8::String::Utf8Value str(result);
-				const char* cstr = ToCString(str);
-				//printf("%s\n", cstr);
-				result_str.append(cstr);
-			}
-			return true;
-		}
-	}
-}
-
-// CCV3
-
-//v8::HandleScope handle_scope(isolate);
+//-----------------------------------------------------------
+// utility functions FIXME: class.  also, improve them.
+//-----------------------------------------------------------
 
 void NarrowString(BSTR* bstr, std::string &str)
 {
@@ -135,6 +75,36 @@ void NarrowString2(LPCTSTR tstr, std::string &str)
 	int len = wide.Length();
 	for (int i = 0; i < len; i++) str += (char)(wide.m_str[i] & 0xff);
 }
+
+void FormatCOMError(std::string &target, HRESULT hr, const char *msg, const char *symbol = 0)
+{
+	char szException[1024];
+
+	_com_error err(hr);
+	LPCTSTR errMsg = err.ErrorMessage();
+
+	std::string str;
+
+	NarrowString2(errMsg, str);
+
+	target = msg ? msg : "COM Error";
+	if (symbol)
+	{
+		target += " (";
+		target += symbol;
+		target += "): ";
+	}
+
+	sprintf_s(szException, 1024, "0x%x: ", hr);
+
+	target += szException;
+	target += str.c_str();
+
+}
+
+//-----------------------------------------------------------
+// callback functions
+//-----------------------------------------------------------
 
 void indexed_getter(uint32_t index, const v8::PropertyCallbackInfo<v8::Value>& info)
 {
@@ -223,32 +193,6 @@ void CScripto::SetRetVal(v8::Isolate* isolate, CComVariant &var, v8::ReturnValue
 	}
 }
 
-void FormatCOMError(std::string &target, HRESULT hr, const char *msg, const char *symbol = 0)
-{
-	char szException[1024];
-
-	_com_error err(hr);
-	LPCTSTR errMsg = err.ErrorMessage();
-
-	std::string str;
-
-	NarrowString2(errMsg, str);
-
-	target = msg ? msg : "COM Error";
-	if (symbol)
-	{
-		target += " (";
-		target += symbol;
-		target += "): ";
-	}
-
-	sprintf_s(szException, 1024, "0x%x: ", hr);
-
-	target += szException;
-	target += str.c_str();
-
-}
-
 void CScripto::Invoker(const v8::FunctionCallbackInfo<v8::Value>& args)
 {
 	v8::Isolate* isolate = v8::Isolate::GetCurrent();
@@ -325,18 +269,12 @@ void CScripto::Invoker(const v8::FunctionCallbackInfo<v8::Value>& args)
 		SetRetVal(isolate, cvResult, args.GetReturnValue());
 	}
 
-	//	DISPID dispidNamed = DISPID_PROPERTYPUT;
-	//	dispparams.cNamedArgs = 1;
-	//	dispparams.rgdispidNamedArgs = &dispidNamed;
-
-	//v8::Handle<v8::Int32> dispid = 
-
-	// args.GetReturnValue().Set(dispid);
-
 }
 
-void CScripto::EventCallback(const v8::Persistent<v8::Function, v8::CopyablePersistentTraits<v8::Function>> func)
+HRESULT CScripto::EventCallback(const v8::Persistent<v8::Function, v8::CopyablePersistentTraits<v8::Function>> func)
 {
+	// printf("Event callback\n");
+
 	v8::Isolate* isolate = v8::Isolate::GetCurrent();
 	v8::HandleScope handle_scope(isolate);
 
@@ -349,15 +287,9 @@ void CScripto::EventCallback(const v8::Persistent<v8::Function, v8::CopyablePers
 	v8::Handle< v8::Function > local = v8::Local<v8::Function>::New(isolate, func);
 	v8::Handle< v8::Value > result = local->Call(context->Global(), 0, NULL);
 
-
-//	v8::Local<v8::String> name(v8::String::NewFromUtf8(context->GetIsolate(), "(shell)"));
-//	std::string result;
-//	bool success = ExecuteString(context->GetIsolate(), v8::String::NewFromUtf8(context->GetIsolate(), narrow.c_str()), name, true, true, result);
-
 	context->Exit();
 
-	printf("Event callback\n");
-
+	return S_OK;
 }
 
 void CScripto::Setter(v8::Local<v8::String> property, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<v8::Value>& info)
@@ -371,7 +303,7 @@ void CScripto::Setter(v8::Local<v8::String> property, v8::Local<v8::Value> value
 	std::string propname = ToCString(v8::String::Utf8Value(property));
 	std::string valstr = ToCString(v8::String::Utf8Value(value));
 
-	printf("setter: %s => %s\n", propname.c_str(), valstr.c_str());
+	// printf("setter: %s => %s\n", propname.c_str(), valstr.c_str());
 
 	if (!pdisp) return;
 
@@ -513,12 +445,12 @@ void CScripto::Setter(v8::Local<v8::String> property, v8::Local<v8::Value> value
 															spTypeInfo3->ReleaseTypeAttr(pTatt2);
 
 														}
-													}
-												}
-											}
-										}
-									}
-								}
+													}			//
+												}				//
+											}					// <--- bad code structure
+										}						//
+									}							//
+								}								//
 
 								spTypeInfo2->ReleaseTypeAttr(pTatt);
 							}
@@ -604,7 +536,7 @@ void CScripto::Indexed_Getter(uint32_t index, const v8::PropertyCallbackInfo<v8:
 	dispparams.cArgs = 1;
 	dispparams.cNamedArgs = 0;
 
-	CComVariant cv = index + 1; // breaking vb tradition
+	CComVariant cv = index + 1; // breaking vb tradition // FIXME: make configurable?
 
 	dispparams.rgvarg = &cv;
 
@@ -645,21 +577,7 @@ void CScripto::Getter(v8::Local<v8::String> property, const v8::PropertyCallback
 
 	HRESULT hr = pdisp->GetIDsOfNames(IID_NULL, &member, 1, 1033, &dispid);
 
-	/*
-	if (FAILED(hr))
-	{
-		if (!strncmp(propname.c_str(), "get_", 4)){
-
-			propname = (propname.c_str() + 4);
-			CComBSTR bstrShort(propname.c_str());
-			HRESULT hr = pdisp->GetIDsOfNames(IID_NULL, &bstrShort, 1, 1033, &dispid);
-		}
-	}
-	*/
-
 	if (FAILED(hr)) return;
-
-	///////////
 
 	CComPtr<ITypeInfo> spTypeInfo;
 	hr = pdisp->GetTypeInfo(0, 0, &spTypeInfo);
@@ -769,6 +687,7 @@ void CScripto::LogMessage(const v8::FunctionCallbackInfo<v8::Value>& args)
 	Fire_OnConsolePrint(&bstr, 0);
 
 }
+
 
 void alert(const v8::FunctionCallbackInfo<v8::Value>& args)
 {
@@ -900,6 +819,10 @@ v8::Local< v8::Object > CScripto::WrapDispatch(v8::Isolate *isolate, IDispatch *
 	return instance;
 }
 
+//-----------------------------------------------------------
+// exposed methods
+//-----------------------------------------------------------
+
 STDMETHODIMP CScripto::SetDispatch(IDispatch *Dispatch, BSTR* Name)
 {
 	std::string name;
@@ -948,7 +871,30 @@ STDMETHODIMP CScripto::ExecString(BSTR* Script, BSTR* Result, VARIANT_BOOL* Succ
 
 	std::string result;
 
-	bool success = ExecuteString(context->GetIsolate(), v8::String::NewFromUtf8(context->GetIsolate(), narrow.c_str()), name, true, true, result);
+	v8::TryCatch try_catch;
+	v8::ScriptOrigin origin(name);
+	v8::Handle<v8::Script> script = v8::Script::Compile(v8::String::NewFromUtf8(context->GetIsolate(), narrow.c_str()));
+
+	bool success = false;
+
+	if (script.IsEmpty()) {
+		FormatException(isolate, &try_catch, result);
+	}
+	else {
+		v8::Handle<v8::Value> script_result = script->Run();
+		if (script_result.IsEmpty()) {
+			FormatException(isolate, &try_catch, result);
+		}
+		else {
+			if (!script_result->IsUndefined()) {
+
+				v8::String::Utf8Value str(script_result);
+				const char* cstr = ToCString(str);
+				result = cstr;
+			}
+			success = true;
+		}
+	}
 
 	context->Exit();
 

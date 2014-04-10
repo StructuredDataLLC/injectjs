@@ -83,7 +83,7 @@ public:
 	void Confirm(const v8::FunctionCallbackInfo<v8::Value>& args);
 	void LogMessage(const v8::FunctionCallbackInfo<v8::Value>& args);
 
-	void EventCallback(const v8::Persistent<v8::Function, v8::CopyablePersistentTraits<v8::Function>> func);
+	HRESULT EventCallback(const v8::Persistent<v8::Function, v8::CopyablePersistentTraits<v8::Function>> func);
 
 	void ResetContext();
 	void InitContext();

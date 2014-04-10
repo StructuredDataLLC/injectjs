@@ -20,6 +20,7 @@ class CScripto; // fwd
 
 using namespace ATL;
 
+/** default traits are non-copyable, doesn't play well with stl containers */
 typedef v8::Persistent<v8::Function, v8::CopyablePersistentTraits<v8::Function>> CopyablePersistent;
 
 // CCVEventHandler
@@ -60,6 +61,11 @@ public:
 	std::hash_map < long, CopyablePersistent > func_map;
 	CScripto *ptr;
 
+	/**
+	 * store a pointer to a function by dispid.  a single instance can be used
+	 * for all sinks into this class, although at the moment we're not supporting
+	 * multiple callbacks (should be no problem)
+	 */
 	void Store(v8::Isolate* isolate, long ID, v8::Local<v8::Function> value)
 	{
 		std::hash_map < long, CopyablePersistent >::iterator iter = func_map.find(ID);
@@ -74,8 +80,14 @@ public:
 		}
 	}
 
-	STDMETHOD(SetPtr)(CScripto *ptr){ this->ptr = ptr; return S_OK;  }
+	/**
+	 * set pointer to CV class for callbacks
+	 */
+	STDMETHOD(SetPtr)(CScripto *ptr){ this->ptr = ptr; return S_OK; }
 
+	/**
+	 * interceptor for calls from the source interface.  we have dispids mapped to functions.
+	 */
 	STDMETHOD(Invoke)(DISPID dispidMember, REFIID riid, LCID lcid, WORD wFlags, DISPPARAMS* pdispparams, VARIANT* pvarResult, EXCEPINFO* pexcepinfo, UINT* puArgErr);
 	
 

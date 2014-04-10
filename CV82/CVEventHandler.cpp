@@ -9,7 +9,7 @@ STDMETHODIMP CCVEventHandler::Invoke(DISPID dispidMember, REFIID riid, LCID lcid
 	std::hash_map < long, CopyablePersistent >::iterator iter = func_map.find(dispidMember);
 	if (iter != func_map.end())
 	{
-		ptr->EventCallback( iter->second );
+		return ptr->EventCallback( iter->second );
 	}
 	return IDispatchImpl<ICVEventHandler, &IID_ICVEventHandler, &LIBID_CV82Lib, /*wMajor =*/ 1, /*wMinor =*/ 0>::
 		Invoke(dispidMember, riid, lcid, wFlags, pdispparams, pvarResult, pexcepinfo, puArgErr);
