@@ -66,7 +66,7 @@ You need to know javascript and Excel's object model pretty well.  There is only
 
 Enums are exposed in the global namespace, so it's legal to say something like
 
-Application.ActiveCell.Interior.Color = XlRgbColor.rgbCrimson;
+`Application.ActiveCell.Interior.Color = XlRgbColor.rgbCrimson;`
 
 Enums and the primary object are hinted in the editor, still working on hinting scoped fields.
 
