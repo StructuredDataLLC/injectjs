@@ -152,12 +152,38 @@ void invoker(const v8::FunctionCallbackInfo<v8::Value>& args)
 
 }
 
+void ReleasePtr(const v8::WeakCallbackData<v8::Object, IDispatch> &data )
+{
+	v8::Isolate* isolate = v8::Isolate::GetCurrent();
+	v8::HandleScope handle_scope(isolate);
+
+	printf("Release disp\n");
+	if (data.GetParameter()) data.GetParameter()->Release();
+
+	// ((IDispatch*)parameter)->Release();
+}
+
+
 void CScripto::SetRetVal(v8::Isolate* isolate, CComVariant &var, v8::ReturnValue< v8::Value > &retval)
 {
 	switch (var.vt)
 	{
 	case VT_DISPATCH:
-		retval.Set(WrapDispatch(isolate, var.pdispVal));
+		{
+			// wrap dispatch will addref.  we want to release it at some point.
+			// for the non-global objects, that should be up to the gc.
+						
+			v8::Local<v8::Object> rObj = WrapDispatch(isolate, var.pdispVal);
+			v8::Persistent<v8::Object> pObj;
+			pObj.Reset(isolate, rObj);
+			
+			pObj.SetWeak( var.pdispVal, ReleasePtr );
+
+
+			retval.Set(rObj);
+		}
+
+
 		break;
 	case VT_EMPTY:
 		retval.Set(v8::Undefined(isolate));

@@ -62,13 +62,8 @@ Using
 =====
 
 You should know javascript and Excel's object model pretty well.  There is only one object exposed in the environment -
-Application.  This represents the Excel application.
-
-Objects
--------
-
-All object descend from Application.  There are no "magic" fields like ActiveWorkbook (in VB that's just an alias for 
-Application.ActiveWorkbook).  And so on.
+Application.  This represents the Excel application.  All object descend from Application.  There are no "magic" fields 
+like ActiveWorkbook (in VB that's just an alias for Application.ActiveWorkbook).  And so on.
 
 Interaction
 -----------
@@ -91,6 +86,9 @@ Examples
 --------
 
 ```javascript
+
+// add a sheet; rename it; and log all clicks.
+
 var ws = Application.ActiveWorkbook.Sheets.Add();
 ws.Name = "Update";
 ws.SelectionChange = function(){
@@ -99,6 +97,10 @@ ws.SelectionChange = function(){
 ```
 
 ```javascript
+
+// find the lowest value(s) in the selection, 
+// and color them purple.  with some logging.
+
 function search_highlight()
 {
 	console.log( "Search: " + 
