@@ -17,6 +17,7 @@ import "ocidl.idl";
 interface IScripto : IDispatch{
 	[id(10)] HRESULT SetDispatch([in] IDispatch* Dispatch, [in] BSTR* Name);
 	[id(11)] HRESULT ExecString([in] BSTR* Script, [out] BSTR* Result, [out, retval] VARIANT_BOOL* Success);
+	[id(12)] HRESULT MapTypeLib([in] IDispatch* Dispatch, [out, retval] BSTR* Description);
 };
 [
 	object,

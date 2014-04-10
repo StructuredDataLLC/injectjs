@@ -4,7 +4,7 @@
 
 
  /* File created by MIDL compiler version 8.00.0603 */
-/* at Wed Apr 09 18:49:25 2014
+/* at Thu Apr 10 11:18:24 2014
  */
 /* Compiler settings for CV82.idl:
     Oicf, W1, Zp8, env=Win32 (32b run), target_arch=X86 8.00.0603 
@@ -123,6 +123,10 @@ EXTERN_C const IID IID_IScripto;
             /* [out] */ BSTR *Result,
             /* [retval][out] */ VARIANT_BOOL *Success) = 0;
         
+        virtual /* [id] */ HRESULT STDMETHODCALLTYPE MapTypeLib( 
+            /* [in] */ IDispatch *Dispatch,
+            /* [retval][out] */ BSTR *Description) = 0;
+        
     };
     
     
@@ -192,6 +196,11 @@ EXTERN_C const IID IID_IScripto;
             /* [out] */ BSTR *Result,
             /* [retval][out] */ VARIANT_BOOL *Success);
         
+        /* [id] */ HRESULT ( STDMETHODCALLTYPE *MapTypeLib )( 
+            IScripto * This,
+            /* [in] */ IDispatch *Dispatch,
+            /* [retval][out] */ BSTR *Description);
+        
         END_INTERFACE
     } IScriptoVtbl;
 
@@ -233,6 +242,9 @@ EXTERN_C const IID IID_IScripto;
 
 #define IScripto_ExecString(This,Script,Result,Success)	\
     ( (This)->lpVtbl -> ExecString(This,Script,Result,Success) ) 
+
+#define IScripto_MapTypeLib(This,Dispatch,Description)	\
+    ( (This)->lpVtbl -> MapTypeLib(This,Dispatch,Description) ) 
 
 #endif /* COBJMACROS */
 

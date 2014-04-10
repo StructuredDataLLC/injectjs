@@ -79,6 +79,17 @@ public:
 	STDMETHOD(SetDispatch)(IDispatch *Dispatch, BSTR* Name);
 	STDMETHOD(ExecString)(BSTR* Script, BSTR* Result, VARIANT_BOOL* Success);
 
+	/**
+	 * I'm not sure why this is so difficult to do in c#, but
+	 * since we have a COM object handy we might as well do it
+	 * in here. 
+	 *
+	 * we can take the opportunity to populate enums in the 
+	 * script context.
+	 */
+	STDMETHOD(MapTypeLib)(IDispatch* Dispatch, BSTR* Description);
+
+
 	void Alert(const v8::FunctionCallbackInfo<v8::Value>& args);
 	void Confirm(const v8::FunctionCallbackInfo<v8::Value>& args);
 	void LogMessage(const v8::FunctionCallbackInfo<v8::Value>& args);
@@ -93,6 +104,33 @@ public:
 	v8::Local< v8::Object > WrapDispatch(v8::Isolate *isolate, IDispatch *pdisp);
 	void SetRetVal(v8::Isolate* isolate, CComVariant &var, v8::ReturnValue< v8::Value > &retval);
 	void Indexed_Getter(uint32_t index, const v8::PropertyCallbackInfo<v8::Value>& info);
+
+};
+
+#define MRFLAG_PROPGET 1
+#define MRFLAG_PROPPUT 2
+#define MRFLAG_METHOD 4
+
+class MemberRep
+{
+public:
+
+	int mrflags;
+
+	std::string name;
+	std::string type;
+
+	MemberRep() : mrflags(0) {}
+
+	/* using pointers for the map
+
+	MemberRep(const MemberRep &rhs)
+	{
+		this->mrflags = rhs.mrflags;
+		this->name = rhs.name.c_str();
+		this->type = rhs.type.c_str();
+	}
+	*/
 
 };
 

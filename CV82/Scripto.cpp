@@ -7,6 +7,7 @@
 #include <comdef.h>
 
 #include <string>
+#include <sstream>
 
 // CScripto
 
@@ -154,13 +155,24 @@ void invoker(const v8::FunctionCallbackInfo<v8::Value>& args)
 
 void ReleasePtr(const v8::WeakCallbackData<v8::Object, IDispatch> &data )
 {
+	
 	v8::Isolate* isolate = v8::Isolate::GetCurrent();
 	v8::HandleScope handle_scope(isolate);
 
-	printf("Release disp\n");
-	if (data.GetParameter()) data.GetParameter()->Release();
+	//printf("Release disp\n");
+	//if (data.GetParameter()) data.GetParameter()->Release();
 
-	// ((IDispatch*)parameter)->Release();
+	v8::Handle<v8::External> check = v8::Handle<v8::External>::Cast(data.GetValue()->GetInternalField(1));
+	IDispatch *pdisp = (IDispatch*)(check->Value());
+	if (pdisp) pdisp->Release();
+	data.GetValue()->SetInternalField(1, v8::External::New(isolate, 0));
+
+	CComObject<CCVEventHandler>* pSink;
+	check = v8::Handle<v8::External>::Cast(data.GetValue()->GetInternalField(2));
+	pSink = ((CComObject<CCVEventHandler>*)(check->Value()));
+	if (pSink) pSink->Release();
+	data.GetValue()->SetInternalField(2, v8::External::New(isolate, 0));
+
 }
 
 
@@ -302,6 +314,7 @@ HRESULT CScripto::EventCallback(const v8::Persistent<v8::Function, v8::CopyableP
 	// printf("Event callback\n");
 
 	v8::Isolate* isolate = v8::Isolate::GetCurrent();
+	v8::Locker locker(isolate);
 	v8::HandleScope handle_scope(isolate);
 
 	v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, _context);
@@ -343,6 +356,12 @@ void CScripto::Setter(v8::Local<v8::String> property, v8::Local<v8::Value> value
 
 	if (FAILED(hr))
 	{
+		// it's not in the default interface.  it might be 
+		// an event, if the script is trying to set a callback.
+		// in that case, we need to find the appropriate
+		// source interface.  we should map these ahead of 
+		// time or at least cache mappings.
+
 		if (!value->IsFunction())
 		{
 			return;
@@ -451,6 +470,7 @@ void CScripto::Setter(v8::Local<v8::String> property, v8::Local<v8::Value> value
 
 																	CComObject<CCVEventHandler>::CreateInstance(&pSink);
 																	CComPtr<IUnknown> punk;
+																	pSink->AddRef();
 																	pSink->QueryInterface(IID_IUnknown, (void**)&punk);
 																	pSink->SetPtr(this);
 
@@ -611,7 +631,8 @@ void CScripto::Getter(v8::Local<v8::String> property, const v8::PropertyCallback
 
 	// FIXME: no need to iterate, you can use GetIDsOfNames from ITypeInfo 
 	// to get the memid, then use that to get the funcdesc.  much more efficient.
-	
+	// ... how does that deal with propget/propput?
+
 	if (SUCCEEDED(hr) && spTypeInfo)
 	{
 		TYPEATTR *pTatt = nullptr;
@@ -845,9 +866,390 @@ v8::Local< v8::Object > CScripto::WrapDispatch(v8::Isolate *isolate, IDispatch *
 	return instance;
 }
 
+const char * vt_type(int vt)
+{
+	vt &= (~VT_BYREF);
+	switch (vt){
+	case 1:
+		return "VT_NULL";
+	case 2:
+	case 3:
+		return "int";
+	case 4:
+	case 5:
+		return "double";
+	case 6:
+		return 		"VT_CY";// 6,
+	case 7:
+		return 		"VT_DATE";// 7,
+	case 8:
+		return 		"string";
+	case 9:
+		return 		"IDispatch";// 9,
+	case 10:
+		return 		"VT_ERROR";// 10,
+	case 11:
+		return 		"boolean";// 11,
+	case 12:
+		return 		"variant";// 12,
+	case 13:
+		return 		"IUnknown";// 13,
+	case 14:
+		return 		"VT_DECIMAL";// 14,
+	case 16:
+		return 		"VT_I1";// 16,
+	case 17:
+		return 		"VT_UI1";// 17,
+	case 18:
+		return 		"VT_UI2";// 18,
+	case 19:
+		return 		"uint";// 19,
+	case 20:
+		return 		"int";// 20,
+	case 21:
+		return 		"uint";// 21,
+	case 22:
+		return 		"int";// 22,
+	case 23:
+		return 		"uint";// 23,
+	case 24:
+		return 		"void";// 24,
+	case 25:
+		return 		"VT_HRESULT";// 25,
+	case 26:
+		return 		"VT_PTR";// 26,
+	case 27:
+		return 		"VT_SAFEARRAY";// 27,
+	}
+	return "OTHER";
+}
+
+void map_returntype( std::string &rtype, TYPEDESC *ptdesc, CComPtr<ITypeInfo> typeinfo )
+{
+	HRESULT hr;
+	CComPtr< ITypeInfo > spTypeInfo2;
+	CComBSTR bstrName;
+
+	if (ptdesc->vt == VT_PTR)
+	{
+		while ((ptdesc->vt == VT_PTR) && (ptdesc->lptdesc != 0)){
+			ptdesc = ptdesc->lptdesc;
+		}
+	}
+
+	if (ptdesc->hreftype != 0)
+	{
+		CComPtr<ITypeInfo> spTypeInfo2;
+		if (ptdesc->vt == VT_USERDEFINED && 
+			(SUCCEEDED(typeinfo->GetRefTypeInfo(ptdesc->hreftype, &spTypeInfo2))))
+		{
+			if (SUCCEEDED(spTypeInfo2->GetDocumentation(-1, &bstrName, 0, 0, 0)))
+			{
+				std::string refname;
+				rtype.clear();
+				NarrowString(&bstrName, rtype);
+			}
+			else
+			{
+				rtype = "(not found [1])";
+			}
+		}
+		else
+		{
+			rtype = "(not found [2])"; // probably need to read the import list
+		}
+	}
+	else if (ptdesc->vt)
+	{
+		rtype = vt_type(ptdesc->vt);
+	}
+	else
+	{
+		rtype = "(not found [3])"; // case?
+	}
+
+}
+
+
+
+void mapInterface(std::string &output, std::string &name, CComPtr<ITypeInfo> typeinfo, CComPtr<ITypeLib> typelib, TYPEATTR *pTatt, TYPEKIND tk)
+{
+	std::stringstream ss;
+	std::string elementname;
+	CComBSTR bstrName;
+
+	FUNCDESC *fd;
+
+	std::hash_map< std::string, MemberRep* > ifacemap;
+
+	ss << "\"" << name.c_str() << "\": { \n";
+	ss << "\t\"type\": \"" << ( tk == TKIND_DISPATCH ? "dispatch" : "interface" ) << "\", \n";
+	ss << "\t\"members\": {\n";
+
+	for (UINT u = 0; u < pTatt->cFuncs; u++)
+	{
+		fd = 0;
+		HRESULT hr = typeinfo->GetFuncDesc(u, &fd);
+		if (SUCCEEDED(hr))
+		{
+			elementname.clear();
+
+			hr = typeinfo->GetDocumentation(fd->memid, &bstrName, 0, 0, 0);
+			if (SUCCEEDED(hr))
+			{
+				NarrowString(&bstrName, elementname);
+
+				std::string rtype = "(unknown type)";
+
+				if ( fd->funckind == FUNC_DISPATCH ) // && ( fd->invkind == INVOKE_PROPERTYGET || fd->invkind == INVOKE_FUNC ))
+				{
+					map_returntype(rtype, &(fd->elemdescFunc.tdesc), typeinfo );
+				}
+				else if (fd->lprgelemdescParam && ( fd->lprgelemdescParam->paramdesc.wParamFlags & 0xa ))
+				{
+					map_returntype(rtype, &(fd->lprgelemdescParam->tdesc), typeinfo);
+				}
+				else if ((fd->invkind == INVOKE_FUNC) && fd->lprgelemdescParam)
+				{
+					map_returntype(rtype, &(fd->lprgelemdescParam->tdesc), typeinfo);
+				}
+				else if (fd->invkind == INVOKE_FUNC) // && fd->lprgelemdescParam)
+				{
+					rtype = "void";
+				}
+
+				std::hash_map< std::string, MemberRep* >::iterator iter = ifacemap.find(elementname.c_str());
+				if (iter != ifacemap.end())
+				{
+					MemberRep *mr = iter->second;
+
+					// if this is get, set type
+					if (fd->invkind == INVOKE_PROPERTYGET)
+					{
+						mr->type = rtype.c_str();
+						mr->mrflags |= MRFLAG_PROPGET;
+					}
+					else if (fd->invkind == INVOKE_PROPERTYPUT || fd->invkind == INVOKE_PROPERTYPUTREF)
+					{
+						mr->mrflags |= MRFLAG_PROPPUT;
+					}
+					else
+					{
+						// this should not happen
+						printf("?");
+					}
+
+					ifacemap.erase(iter);
+					ifacemap.insert(std::pair< std::string, MemberRep* >(elementname, mr));
+				}
+				else
+				{
+					MemberRep *mr = new MemberRep();
+					mr->name = elementname.c_str();
+					mr->type = rtype.c_str();
+					if (fd->invkind == INVOKE_FUNC) mr->mrflags = MRFLAG_METHOD;
+					else if (fd->invkind == INVOKE_PROPERTYGET) mr->mrflags = MRFLAG_PROPGET;
+					else mr->mrflags = MRFLAG_PROPPUT;
+					ifacemap.insert(std::pair< std::string, MemberRep* >(elementname, mr));
+				}
+			}
+			typeinfo->ReleaseFuncDesc(fd);
+		}
+	}
+
+	{
+		std::hash_map< std::string, MemberRep* >::iterator iter = ifacemap.begin();
+		for (int i = 0; i< ifacemap.size(); i++)
+		{
+			MemberRep *mr = (iter++)->second;
+			ss << "\t\t\"" << mr->name << "\": { type:\"" << mr->type << "\", flags: " << mr->mrflags << " }";
+			if ( i < ifacemap.size() - 1 ) ss << ",";
+			ss << "\n";
+			delete mr;
+		}
+	}
+
+	ss << "\t}\n}";
+
+	output = ss.str();
+}
+
+void mapCoClass(std::string &output, std::string &name, CComPtr<ITypeInfo> typeinfo, TYPEATTR *pTatt)
+{
+	std::stringstream ss;
+
+	CComBSTR bstrName;
+	std::string elementname;
+	INT lImplTypeFlags;
+	HREFTYPE handle;
+	CComPtr< ITypeInfo > spTypeInfo2;
+
+	ss << "\"" << name.c_str() << "\": { \n";
+	ss << "\t\"type\": \"coclass\", \n";
+
+	// FIXME: could cache source GUIDs here, would save lookup later
+
+	for (UINT j = 0; j < pTatt->cImplTypes; j++)
+	{
+		HRESULT hr = typeinfo->GetImplTypeFlags(j, &lImplTypeFlags);
+		if (SUCCEEDED(hr)) hr = typeinfo->GetRefTypeOfImplType(j, &handle);
+		if (SUCCEEDED(hr)) hr = typeinfo->GetRefTypeInfo(handle, &spTypeInfo2);
+		if (SUCCEEDED(hr))
+		{
+			if (SUCCEEDED(spTypeInfo2->GetDocumentation(-1, &bstrName, 0, 0, 0)))
+			{
+				NarrowString(&bstrName, elementname);
+				if (lImplTypeFlags == 1) ss << "\t\"default\": \"" << elementname << "\"";
+				else ss << "\t\"source\": \"" << elementname << "\"";
+				if (j < pTatt->cImplTypes - 1) ss << ",";
+				ss << "\n";
+			}
+			spTypeInfo2 = 0;
+		}
+	}
+
+	ss << "}";
+	output = ss.str();
+
+}
+
+void mapEnum(std::string &output, std::string &name, CComPtr<ITypeInfo> typeinfo, TYPEATTR *pTatt)
+{
+	std::stringstream ss;
+
+	VARDESC *vd = 0;
+	CComBSTR bstrName;
+	std::string elementname;
+
+	ss << "\"" << name.c_str() << "\": { \n";
+	ss << "\t\"type\": \"enum\", \n";
+	ss << "\t\"values\": { \n";
+
+	for (UINT u = 0; u < pTatt->cVars; u++)
+	{
+		vd = 0;
+		HRESULT hr = typeinfo->GetVarDesc(u, &vd);
+		if (SUCCEEDED(hr))
+		{
+			if (vd->varkind != VAR_CONST
+				|| vd->lpvarValue->vt != VT_I4)
+			{
+				printf("UNEXPECTED\n");
+			}
+
+			elementname.clear();
+
+			hr = typeinfo->GetDocumentation(vd->memid, &bstrName, 0, 0, 0);
+			if (SUCCEEDED(hr))
+			{
+				NarrowString(&bstrName, elementname);
+				ss << "\t\t\"" << elementname << "\": ";
+				ss << vd->lpvarValue->intVal;
+				if (u < pTatt->cVars - 1) ss << ",";
+				ss << "\n";
+			}
+			typeinfo->ReleaseVarDesc(vd);
+		}
+	}
+
+	ss << "\t}\n}";
+	output = ss.str();
+
+	// printf("%s\n", output.c_str());
+
+}
+
 //-----------------------------------------------------------
 // exposed methods
 //-----------------------------------------------------------
+
+STDMETHODIMP CScripto::MapTypeLib(IDispatch *Dispatch, BSTR *Description)
+{
+	
+	CComPtr<ITypeInfo> spTypeInfo;
+	CComPtr<ITypeLib> spTypeLib;
+	
+	HRESULT hr = Dispatch->GetTypeInfo(0, 0, &spTypeInfo);
+	std::stringstream composite;
+
+	std::list<std::string> elements;
+
+	// get type lib
+
+	if (SUCCEEDED(hr) && spTypeInfo)
+	{
+		UINT tlidx;
+		hr = spTypeInfo->GetContainingTypeLib(&spTypeLib, &tlidx);
+	}
+
+	if (SUCCEEDED(hr))
+	{
+		UINT tlcount = spTypeLib->GetTypeInfoCount();
+		TYPEKIND tk;
+
+		for (UINT u = 0; u < tlcount; u++)
+		{
+			if (SUCCEEDED(spTypeLib->GetTypeInfoType(u, &tk)))
+			{
+				CComBSTR bstrName;
+				TYPEATTR *pTatt = nullptr;
+				CComPtr<ITypeInfo> spTypeInfo2;
+				hr = spTypeLib->GetTypeInfo(u, &spTypeInfo2);
+				if (SUCCEEDED(hr)) hr = spTypeInfo2->GetTypeAttr(&pTatt);
+				if (SUCCEEDED(hr)) hr = spTypeInfo2->GetDocumentation(-1, &bstrName, 0, 0, 0);
+				if (SUCCEEDED(hr))
+				{
+					std::string tname;
+					NarrowString(&bstrName, tname);
+					printf("%s\n", tname.c_str());
+					std::string tmpstr;
+
+					switch (tk)
+					{
+					case TKIND_ENUM:
+						mapEnum(tmpstr, tname, spTypeInfo2, pTatt);
+						composite << tmpstr;
+						break;
+
+					case TKIND_COCLASS:
+						mapCoClass(tmpstr, tname, spTypeInfo2, pTatt);
+						composite << tmpstr;
+						break;
+
+					case TKIND_INTERFACE:
+					case TKIND_DISPATCH:
+						mapInterface(tmpstr, tname, spTypeInfo2, spTypeLib, pTatt, tk);
+						composite << tmpstr;
+						break;
+
+						//break;
+
+					default:
+						printf("UNEXPECTED TKIND: %d\n", tk);
+						break;
+					}
+
+					if (tmpstr.length() > 0) elements.push_back(tmpstr);
+
+				}
+				if (pTatt) spTypeInfo2->ReleaseTypeAttr(pTatt);
+			}
+		}
+	}
+
+	CComBSTR bstrComposite = "{\n";
+
+	for (std::list< std::string > ::iterator iter = elements.begin(); iter != elements.end(); iter++)
+	{
+		if (bstrComposite.Length() > 2) bstrComposite.Append(",\n");
+		bstrComposite.Append(iter->c_str());
+	}
+
+	bstrComposite.Append("\n}\n");
+	bstrComposite.CopyTo(Description );
+
+	return S_OK;
+}
 
 STDMETHODIMP CScripto::SetDispatch(IDispatch *Dispatch, BSTR* Name)
 {
@@ -878,6 +1280,7 @@ STDMETHODIMP CScripto::SetDispatch(IDispatch *Dispatch, BSTR* Name)
 STDMETHODIMP CScripto::ExecString(BSTR* Script, BSTR* Result, VARIANT_BOOL* Success)
 {
 	v8::Isolate* isolate = v8::Isolate::GetCurrent();
+	v8::Locker locker(isolate);
 	v8::HandleScope handle_scope(isolate);
 
 	if (_context.IsEmpty()) InitContext();

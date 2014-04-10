@@ -15,11 +15,13 @@ using Microsoft.Office.Tools.Excel;
 using ScintillaNET;
 using System.IO;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
+
+using System.Web.Script.Serialization;
 
 using CV82Lib;
 
-using System.Runtime.InteropServices;
 
 namespace InjectExcel
 {
@@ -33,6 +35,8 @@ namespace InjectExcel
         Scripto scripto = null;
 
         bool cinit = false;
+
+        Dictionary<string, object> masterDict = null;
 
         public scriptPane()
         {
@@ -61,6 +65,12 @@ namespace InjectExcel
             Directory.SetCurrentDirectory(cwd);
 
             editor.TextChanged += editor_TextChanged;
+            editor.KeyPress += editor_KeyPress;
+
+            editor.AutoComplete.List.Clear();
+            editor.AutoComplete.List.Add("Application");
+            editor.AutoComplete.List.Sort();
+            //editor.AutoComplete.IsCaseSensitive = true;
 
             bClearLog.Click += bClearLog_Click;
             bExecute.Click += bExec_Click;
@@ -72,6 +82,135 @@ namespace InjectExcel
             cbScriptLanguage.SelectedIndexChanged += cbScriptLanguage_SelectedIndexChanged;
 
             Load += taskPane_Load;
+
+        }
+
+        string findRootType( string token )
+        {
+            // TODO: types for fields in scope
+
+            if (token.Equals("Application")) return "Application";
+            if( masterDict.ContainsKey( token ))
+            {
+                Dictionary<string, object> d = (Dictionary<string, object>)masterDict[token];
+                if (d["type"].Equals("enum")) return token;
+            }
+            return null;
+        }
+
+        string childType( string root, string child )
+        {
+            if (!masterDict.ContainsKey(root)) return "";
+            Dictionary<string, object> d = (Dictionary<string, object>)masterDict[root];
+
+            // note: if root is an enum type, there's no way the child has candidates, 
+            // you can just bail
+
+            if (d["type"].Equals("enum")) return "";
+
+            Dictionary<string, object> candidates = Candidates(root, null);
+            if (!candidates.ContainsKey(child)) return "";
+
+            Dictionary<string, object> dict = (Dictionary<string, object>)candidates[child];
+
+            if (dict.ContainsKey("type")) return dict["type"].ToString();
+            return "";
+        }
+
+        Dictionary<string, object> Candidates( string parent, string key )
+        {
+            // start by looking up the parent type
+            if (!masterDict.ContainsKey(parent)) return new Dictionary<string, object>(); 
+
+            Dictionary<string, object> d = (Dictionary<string, object>)masterDict[parent];
+
+            if( d["type"].Equals("coclass"))
+            {
+                if( null == key ) // return all members of any interfaces
+                {
+                    Dictionary<string, object> dict = new Dictionary<string, object>();
+                    if( d.ContainsKey("default") && masterDict.ContainsKey(d["default"].ToString()))
+                    {
+                        Dictionary<string, object> d2 = Candidates( d["default"].ToString(), null);
+                        foreach (string k2 in d2.Keys) dict.Add(k2, d2[k2]);
+                    }
+                    if (d.ContainsKey("source") && masterDict.ContainsKey(d["source"].ToString()))
+                    {
+                        Dictionary<string, object> d2 = Candidates(d["source"].ToString(), null);
+                        foreach (string k2 in d2.Keys) dict.Add(k2, d2[k2]);
+                    }
+                    return dict;
+                }
+            }
+            else if( d["type"].Equals("enum"))
+            {
+                if( null == key )
+                    return (Dictionary<string, object>)d["values"];
+            }
+            else // interface 
+            {
+                if( null == key ) // return all members of this interface
+                    return (Dictionary<string, object>) d["members"];
+            }
+
+            return new Dictionary<string, object>();
+        }
+
+        void editor_KeyPress(object sender, KeyPressEventArgs e)
+        {
+            int col;
+            string line = editor.GetCurrentLine(out col);
+
+            if (e.KeyChar == '.')
+            {
+                line = line.Substring(0, col);
+                Regex rex = new Regex( @"[\w\d\._\(\)]+");
+                Regex rexUnfunc = new Regex(@"\(\.*?(?:\)|$)");
+                Match m = rex.Match(line);
+                if( m.Success )
+                {
+                    string[] elts = m.Groups[0].ToString().Split(new char[]{'.'});
+                    string elt = rexUnfunc.Replace(elts[0], "");
+
+                    string root = findRootType(elts[0]);
+                    if (null == root) return;
+
+                    for( int i = 1; i< elts.Length; i++ )
+                    {
+                        // if elt is a legal child of root, then
+                        // find elt's type and set that as root.
+
+                        elt = rexUnfunc.Replace(elts[i], "");
+                        root = childType(root, elt);
+                    }
+
+                    // if we have a type, find candidates
+
+                    Dictionary<string, object> dict = Candidates(root, null);
+                    List<string> list = new List<string>();
+                    foreach (string key in (dict.Keys)) list.Add(key);
+
+                    list.Sort();
+                    editor.AutoComplete.List = list;
+
+                    Timer t = new Timer();
+
+                    t.Interval = 100;
+                    t.Tag = editor;
+                    t.Tick += new EventHandler((obj, ev) =>
+                    {
+                        editor.AutoComplete.Show();
+                        t.Stop();
+                        t.Enabled = false;
+                        t.Dispose();
+                    });
+                    t.Start();
+
+                    // editor.AutoComplete.Show();
+
+                }
+            }
+
         }
 
         void cbScriptLanguage_SelectedIndexChanged(object sender, EventArgs e)
@@ -91,6 +230,20 @@ namespace InjectExcel
             editor.TextChanged -= editor_TextChanged;
             LoadScript();
             editor.TextChanged += editor_TextChanged;
+
+            ConstructTypeMap();
+
+        }
+
+        void ConstructTypeMap()
+        {
+            // Type t = DispatchUtility.GetType(Globals.ThisAddIn.Application, false);
+            //           logMessage("T: " + t.ToString());
+            string map = scripto.MapTypeLib(Globals.ThisAddIn.Application);
+            System.Web.Script.Serialization.JavaScriptSerializer serializer = new JavaScriptSerializer();
+            masterDict = (Dictionary<string, object>)(serializer.Deserialize<Object>(map));
+
+            logMessage(map);
         }
 
         void app_WorkbookBeforeSave(Excel.Workbook Wb, bool SaveAsUI, ref bool Cancel)
@@ -101,6 +254,7 @@ namespace InjectExcel
         void editor_TextChanged(object sender, EventArgs e)
         {
             if (null != Globals.ThisAddIn.Application.ActiveWorkbook) Globals.ThisAddIn.Application.ActiveWorkbook.Saved = false;
+
         }
 
         void app_WorkbookOpen(Excel.Workbook Wb)
@@ -348,4 +502,6 @@ namespace InjectExcel
             logger.Text = "";
         }
     }
+
+
 }
