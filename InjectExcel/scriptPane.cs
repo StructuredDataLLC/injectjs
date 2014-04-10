@@ -32,6 +32,8 @@ namespace InjectExcel
 
         Scripto scripto = null;
 
+        bool cinit = false;
+
         public scriptPane()
         {
             InitializeComponent();
@@ -63,7 +65,19 @@ namespace InjectExcel
             bClearLog.Click += bClearLog_Click;
             bExecute.Click += bExec_Click;
 
+            cbScriptLanguage.Items.Add("Javascript");
+            cbScriptLanguage.Items.Add("CoffeeScript");
+            cbScriptLanguage.SelectedIndex = 0;
+
+            cbScriptLanguage.SelectedIndexChanged += cbScriptLanguage_SelectedIndexChanged;
+
             Load += taskPane_Load;
+        }
+
+        void cbScriptLanguage_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            if (null == Globals.ThisAddIn.Application.ActiveWorkbook)
+                Globals.ThisAddIn.Application.ActiveWorkbook.Saved = false;
         }
 
         void bClearLog_Click(object sender, EventArgs e)
@@ -164,6 +178,54 @@ namespace InjectExcel
             editor.NativeInterface.IndicatorClearRange(0, editor.Text.Length);
         }
 
+        // FIXME: crummy
+        string jsescape( string s )
+        {
+            StringBuilder sb = new StringBuilder();
+            sb.Append("\"");
+            foreach (char c in s)
+            {
+                switch (c)
+                {
+                    case '\"':
+                        sb.Append("\\\"");
+                        break;
+                    case '\\':
+                        sb.Append("\\\\");
+                        break;
+                    case '\b':
+                        sb.Append("\\b");
+                        break;
+                    case '\f':
+                        sb.Append("\\f");
+                        break;
+                    case '\n':
+                        sb.Append("\\n");
+                        break;
+                    case '\r':
+                        sb.Append("\\r");
+                        break;
+                    case '\t':
+                        sb.Append("\\t");
+                        break;
+                    default:
+                        int i = (int)c;
+                        if (i < 32 || i > 127)
+                        {
+                            sb.AppendFormat("\\u{0:X04}", i);
+                        }
+                        else
+                        {
+                            sb.Append(c);
+                        }
+                        break;
+                }
+            }
+            sb.Append("\"");
+
+            return sb.ToString();
+        }
+
         private void bExec_Click(object sender, EventArgs e)
         {
             if (null == scripto) initContext();
@@ -173,15 +235,44 @@ namespace InjectExcel
                 unsquiggle();
                 string script = editor.Text;
                 string output;
-                bool rslt = scripto.ExecString(script, out output);
-                logMessage(output);
-                if (!rslt)
+
+                // FIXME: this should be done closer to the 
+                // script engine, and also, source maps.
+                // with v8 we could compile this function once...
+
+                if (cbScriptLanguage.SelectedIndex != 0)
                 {
-                    Regex rex = new Regex(@"^.+?\:(\d+)\:");
-                    Match m = rex.Match(output);
-                    if (m.Success)
+                    // this only has to happen once
+                    if (!cinit) {
+                        cinit = true;
+                        bool xb = scripto.ExecString(InjectExcel.Properties.Resources.coffee_script, out output); 
+                        if( !xb ) logMessage( "(" + xb + ") cs exec: " + output );
+                    }
+
+                    string composite = "CoffeeScript.eval(";
+                    composite += jsescape(script);
+                    composite += ");";
+
+                    bool rslt = scripto.ExecString(composite, out output);
+                    logMessage(output);
+                    if (!rslt)
                     {
-                        squiggle(Int32.Parse(m.Groups[1].Value));
+                        logMessage("(without source maps, coffeescript errors may be confusing)");
+                    }
+
+                }
+                else
+                {
+                    bool rslt = scripto.ExecString(script, out output);
+                    logMessage(output);
+                    if (!rslt)
+                    {
+                        Regex rex = new Regex(@"^.+?\:(\d+)\:");
+                        Match m = rex.Match(output);
+                        if (m.Success)
+                        {
+                            squiggle(Int32.Parse(m.Groups[1].Value));
+                        }
                     }
                 }
             }
@@ -195,21 +286,30 @@ namespace InjectExcel
          void SaveScript()
         {
             if (null == Globals.ThisAddIn.Application.ActiveWorkbook) return;
-            string xmlString1 =
-                      "<script xmlns=\"" + SCRIPT_XML_NAMESPACE + "\"><source><![CDATA[" + editor.Text +
-                      "]]></source></script>";
+
+            string version = "1.1";
+            string lang = cbScriptLanguage.SelectedItem.ToString();
+
+            string source = "<source language=\"" + lang + "\"><![CDATA[" + editor.Text + "]]></source>";
+            string xmlString1 = "<script version=\"" + version + "\" xmlns=\"" + SCRIPT_XML_NAMESPACE + "\">" + source + "</script>";
 
             Office.CustomXMLParts parts = Globals.ThisAddIn.Application.ActiveWorkbook.CustomXMLParts.SelectByNamespace(SCRIPT_XML_NAMESPACE);
             if (parts.Count > 0)
             {
                 Office.CustomXMLPart part = parts[1];
                 part.NamespaceManager.AddNamespace("N", SCRIPT_XML_NAMESPACE);
-                Office.CustomXMLNode node = part.SelectSingleNode("//N:source"); 
-                if (null != node)
-                {
-                    node.FirstChild.Delete();
-                    node.AppendChildNode("", "", Office.MsoCustomXMLNodeType.msoCustomXMLNodeCData, editor.Text);
-                }
+
+                Office.CustomXMLNode node = part.SelectSingleNode("//N:script/@version");
+                if (null != node) node.Delete();
+                node = part.SelectSingleNode("//N:script");
+                node.AppendChildNode("version", "", Office.MsoCustomXMLNodeType.msoCustomXMLNodeAttribute, version);
+
+                node = part.SelectSingleNode("//N:source/@language");
+                if (null != node) node.Delete();
+                node = part.SelectSingleNode("//N:source");
+                node.FirstChild.Delete();
+                node.AppendChildNode("", "", Office.MsoCustomXMLNodeType.msoCustomXMLNodeCData, editor.Text);
+                node.AppendChildNode("language", "", Office.MsoCustomXMLNodeType.msoCustomXMLNodeAttribute, lang);
             }
             else
             {
@@ -229,6 +329,17 @@ namespace InjectExcel
 
                 Office.CustomXMLNode node = part.SelectSingleNode("//N:source"); // .FirstChild;
                 if (null != node) editor.Text = node.FirstChild.NodeValue.ToString();
+
+                node = part.SelectSingleNode("//N:source/@language");
+                if (null == node) cbScriptLanguage.SelectedIndex = 0; // default
+                else
+                {
+                    string lang = node.NodeValue.ToString();
+                    for (int i = 0; i < cbScriptLanguage.Items.Count; i++)
+                    {
+                        if (cbScriptLanguage.Items[i].ToString().Equals(lang)) cbScriptLanguage.SelectedIndex = i;
+                    }
+                }
             }
         }
 

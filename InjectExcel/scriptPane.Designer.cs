@@ -29,6 +29,7 @@
         private void InitializeComponent()
         {
             this.splitContainer1 = new System.Windows.Forms.SplitContainer();
+            this.cbScriptLanguage = new System.Windows.Forms.ComboBox();
             this.bClearLog = new System.Windows.Forms.Button();
             this.bExecute = new System.Windows.Forms.Button();
             this.tbEditor = new System.Windows.Forms.TextBox();
@@ -48,6 +49,7 @@
             // 
             // splitContainer1.Panel1
             // 
+            this.splitContainer1.Panel1.Controls.Add(this.cbScriptLanguage);
             this.splitContainer1.Panel1.Controls.Add(this.bClearLog);
             this.splitContainer1.Panel1.Controls.Add(this.bExecute);
             this.splitContainer1.Panel1.Controls.Add(this.tbEditor);
@@ -55,9 +57,19 @@
             // splitContainer1.Panel2
             // 
             this.splitContainer1.Panel2.Controls.Add(this.tbLog);
-            this.splitContainer1.Size = new System.Drawing.Size(629, 593);
+            this.splitContainer1.Size = new System.Drawing.Size(306, 593);
             this.splitContainer1.SplitterDistance = 466;
             this.splitContainer1.TabIndex = 0;
+            // 
+            // cbScriptLanguage
+            // 
+            this.cbScriptLanguage.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right)));
+            this.cbScriptLanguage.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.cbScriptLanguage.FormattingEnabled = true;
+            this.cbScriptLanguage.Location = new System.Drawing.Point(176, 442);
+            this.cbScriptLanguage.Name = "cbScriptLanguage";
+            this.cbScriptLanguage.Size = new System.Drawing.Size(127, 21);
+            this.cbScriptLanguage.TabIndex = 3;
             // 
             // bClearLog
             // 
@@ -85,10 +97,10 @@
             this.tbEditor.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom) 
             | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
-            this.tbEditor.Location = new System.Drawing.Point(3, 34);
+            this.tbEditor.Location = new System.Drawing.Point(3, 35);
             this.tbEditor.Multiline = true;
             this.tbEditor.Name = "tbEditor";
-            this.tbEditor.Size = new System.Drawing.Size(623, 400);
+            this.tbEditor.Size = new System.Drawing.Size(300, 399);
             this.tbEditor.TabIndex = 0;
             // 
             // tbLog
@@ -100,7 +112,7 @@
             this.tbLog.Location = new System.Drawing.Point(3, 3);
             this.tbLog.Multiline = true;
             this.tbLog.Name = "tbLog";
-            this.tbLog.Size = new System.Drawing.Size(623, 117);
+            this.tbLog.Size = new System.Drawing.Size(300, 117);
             this.tbLog.TabIndex = 1;
             // 
             // scriptPane
@@ -108,8 +120,10 @@
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.Controls.Add(this.splitContainer1);
+            this.DoubleBuffered = true;
+            this.MinimumSize = new System.Drawing.Size(300, 300);
             this.Name = "scriptPane";
-            this.Size = new System.Drawing.Size(629, 593);
+            this.Size = new System.Drawing.Size(306, 593);
             this.splitContainer1.Panel1.ResumeLayout(false);
             this.splitContainer1.Panel1.PerformLayout();
             this.splitContainer1.Panel2.ResumeLayout(false);
@@ -127,5 +141,6 @@
         private System.Windows.Forms.Button bExecute;
         private System.Windows.Forms.TextBox tbEditor;
         private System.Windows.Forms.TextBox tbLog;
+        private System.Windows.Forms.ComboBox cbScriptLanguage;
     }
 }
