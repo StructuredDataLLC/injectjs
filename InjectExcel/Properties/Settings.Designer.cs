@@ -22,5 +22,29 @@ namespace InjectExcel.Properties {
                 return defaultInstance;
             }
         }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("True")]
+        public bool visible {
+            get {
+                return ((bool)(this["visible"]));
+            }
+            set {
+                this["visible"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("300")]
+        public int width {
+            get {
+                return ((int)(this["width"]));
+            }
+            set {
+                this["width"] = value;
+            }
+        }
     }
 }

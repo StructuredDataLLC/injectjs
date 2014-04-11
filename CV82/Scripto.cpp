@@ -109,7 +109,7 @@ void FormatCOMError(std::string &target, HRESULT hr, const char *msg, const char
 
 void indexed_getter(uint32_t index, const v8::PropertyCallbackInfo<v8::Value>& info)
 {
-	v8::Isolate* isolate = v8::Isolate::GetCurrent();
+	v8::Isolate* isolate = info.GetIsolate();
 	v8::HandleScope handle_scope(isolate);
 	v8::Handle<v8::External> external = v8::Handle<v8::External>::Cast(info.Holder()->GetInternalField(0));
 
@@ -124,7 +124,7 @@ void indexed_setter(uint32_t index, v8::Local<v8::Value> value, const v8::Proper
 
 void getter(v8::Local<v8::String> property, const v8::PropertyCallbackInfo<v8::Value>& info)
 {
-	v8::Isolate* isolate = v8::Isolate::GetCurrent();
+	v8::Isolate* isolate = info.GetIsolate();
 	v8::HandleScope handle_scope(isolate);
 	v8::Handle<v8::External> external = v8::Handle<v8::External>::Cast(info.Holder()->GetInternalField(0));
 
@@ -134,7 +134,7 @@ void getter(v8::Local<v8::String> property, const v8::PropertyCallbackInfo<v8::V
 
 void setter(v8::Local<v8::String> property, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<v8::Value>& info)
 {
-	v8::Isolate* isolate = v8::Isolate::GetCurrent();
+	v8::Isolate* isolate = info.GetIsolate();
 	v8::HandleScope handle_scope(isolate);
 	v8::Handle<v8::External> external = v8::Handle<v8::External>::Cast(info.Holder()->GetInternalField(0));
 
@@ -144,7 +144,7 @@ void setter(v8::Local<v8::String> property, v8::Local<v8::Value> value, const v8
 
 void invoker(const v8::FunctionCallbackInfo<v8::Value>& args)
 {
-	v8::Isolate* isolate = v8::Isolate::GetCurrent();
+	v8::Isolate* isolate = args.GetIsolate();
 	v8::HandleScope handle_scope(isolate);
 	v8::Handle<v8::External> external = v8::Handle<v8::External>::Cast(args.Holder()->GetInternalField(0));
 
@@ -156,7 +156,7 @@ void invoker(const v8::FunctionCallbackInfo<v8::Value>& args)
 void ReleasePtr(const v8::WeakCallbackData<v8::Object, IDispatch> &data )
 {
 	
-	v8::Isolate* isolate = v8::Isolate::GetCurrent();
+	v8::Isolate* isolate = data.GetIsolate();
 	v8::HandleScope handle_scope(isolate);
 
 	//printf("Release disp\n");
@@ -175,27 +175,44 @@ void ReleasePtr(const v8::WeakCallbackData<v8::Object, IDispatch> &data )
 
 }
 
+v8::Handle<v8::Object> CScripto::MapPersistentObj(v8::Isolate *isolate, IDispatch *pdisp)
+{
+	std::hash_map < long, CopyablePersistentObj > ::iterator iter = object_map.find((long)pdisp);
+
+	if (iter != object_map.end())
+	{
+		return v8::Local<v8::Object>::New(isolate, iter->second);
+	}
+
+	// wrap dispatch will addref.  we want to release it at some point.
+	// for the non-global objects, that should be up to the gc.
+
+	// FIXME: we need to force the GC to be more aggressive.  I think there's
+	// a build flag we can use.
+
+	v8::Local<v8::Object> rObj = WrapDispatch(isolate, pdisp);
+	v8::Persistent<v8::Object> pObj;
+	pObj.Reset(isolate, rObj);
+	pObj.SetWeak(pdisp, ReleasePtr);
+
+	object_map.insert(std::pair< long, CopyablePersistentObj >((long)pdisp, pObj));
+
+	return rObj;
+}
+
+void CScripto::RemovePersistentObj(IDispatch *pdisp)
+{
+	std::hash_map < long, CopyablePersistentObj > ::iterator iter = object_map.find((long)pdisp);
+	if (iter != object_map.end()) object_map.erase(iter);
+	
+}
 
 void CScripto::SetRetVal(v8::Isolate* isolate, CComVariant &var, v8::ReturnValue< v8::Value > &retval)
 {
 	switch (var.vt)
 	{
 	case VT_DISPATCH:
-		{
-			// wrap dispatch will addref.  we want to release it at some point.
-			// for the non-global objects, that should be up to the gc.
-						
-			v8::Local<v8::Object> rObj = WrapDispatch(isolate, var.pdispVal);
-			v8::Persistent<v8::Object> pObj;
-			pObj.Reset(isolate, rObj);
-			
-			pObj.SetWeak( var.pdispVal, ReleasePtr );
-
-
-			retval.Set(rObj);
-		}
-
-
+		retval.Set(MapPersistentObj(isolate, var.pdispVal));
 		break;
 	case VT_EMPTY:
 		retval.Set(v8::Undefined(isolate));
@@ -233,7 +250,7 @@ void CScripto::SetRetVal(v8::Isolate* isolate, CComVariant &var, v8::ReturnValue
 
 void CScripto::Invoker(const v8::FunctionCallbackInfo<v8::Value>& args)
 {
-	v8::Isolate* isolate = v8::Isolate::GetCurrent();
+	v8::Isolate* isolate = getInstanceIsolate();
 	v8::HandleScope handle_scope(isolate);
 
 	v8::Handle<v8::External> external = v8::Handle<v8::External>::Cast(args.Holder()->GetInternalField(1));
@@ -313,8 +330,10 @@ HRESULT CScripto::EventCallback(const v8::Persistent<v8::Function, v8::CopyableP
 {
 	// printf("Event callback\n");
 
-	v8::Isolate* isolate = v8::Isolate::GetCurrent();
+	v8::Isolate* isolate = getInstanceIsolate();
+	isolate->Enter();
 	v8::Locker locker(isolate);
+
 	v8::HandleScope handle_scope(isolate);
 
 	v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, _context);
@@ -327,13 +346,14 @@ HRESULT CScripto::EventCallback(const v8::Persistent<v8::Function, v8::CopyableP
 	v8::Handle< v8::Value > result = local->Call(context->Global(), 0, NULL);
 
 	context->Exit();
+	isolate->Exit();
 
 	return S_OK;
 }
 
 void CScripto::Setter(v8::Local<v8::String> property, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<v8::Value>& info)
 {
-	v8::Isolate* isolate = v8::Isolate::GetCurrent();
+	v8::Isolate* isolate = getInstanceIsolate();
 	v8::HandleScope handle_scope(isolate);
 
 	v8::Handle<v8::External> disp = v8::Handle<v8::External>::Cast(info.Holder()->GetInternalField(1));
@@ -561,7 +581,7 @@ void CScripto::Setter(v8::Local<v8::String> property, v8::Local<v8::Value> value
 
 void CScripto::Indexed_Getter(uint32_t index, const v8::PropertyCallbackInfo<v8::Value>& info)
 {
-	v8::Isolate* isolate = v8::Isolate::GetCurrent();
+	v8::Isolate* isolate = getInstanceIsolate();
 	v8::HandleScope handle_scope(isolate);
 
 	v8::Handle<v8::External> disp = v8::Handle<v8::External>::Cast(info.Holder()->GetInternalField(1));
@@ -604,7 +624,7 @@ void CScripto::Indexed_Getter(uint32_t index, const v8::PropertyCallbackInfo<v8:
 
 void CScripto::Getter(v8::Local<v8::String> property, const v8::PropertyCallbackInfo<v8::Value>& info)
 {
-	v8::Isolate* isolate = v8::Isolate::GetCurrent();
+	v8::Isolate* isolate = getInstanceIsolate();
 	v8::HandleScope handle_scope(isolate);
 
 	v8::Handle<v8::External> disp = v8::Handle<v8::External>::Cast(info.Holder()->GetInternalField(1));
@@ -703,7 +723,7 @@ void CScripto::Getter(v8::Local<v8::String> property, const v8::PropertyCallback
 
 void logmessage(const v8::FunctionCallbackInfo<v8::Value>& args) 
 {
-	v8::Isolate* isolate = v8::Isolate::GetCurrent();
+	v8::Isolate* isolate = args.GetIsolate();
 	v8::HandleScope handle_scope(isolate);
 	v8::Handle<v8::External> external = v8::Handle<v8::External>::Cast(args.Holder()->GetInternalField(0));
 
@@ -738,7 +758,7 @@ void CScripto::LogMessage(const v8::FunctionCallbackInfo<v8::Value>& args)
 
 void alert(const v8::FunctionCallbackInfo<v8::Value>& args)
 {
-	v8::Isolate* isolate = v8::Isolate::GetCurrent();
+	v8::Isolate* isolate = args.GetIsolate();
 	v8::HandleScope handle_scope(isolate);
 	v8::Local< v8::External > external = v8::Handle<v8::External>::Cast(isolate->GetCallingContext()->Global()->GetHiddenValue(v8::String::NewFromUtf8(isolate, "inst")));
 	CScripto *p = (CScripto*)(external->Value());
@@ -747,7 +767,7 @@ void alert(const v8::FunctionCallbackInfo<v8::Value>& args)
 
 void confirm(const v8::FunctionCallbackInfo<v8::Value>& args)
 {
-	v8::Isolate* isolate = v8::Isolate::GetCurrent();
+	v8::Isolate* isolate = args.GetIsolate();
 	v8::HandleScope handle_scope(isolate);
 	v8::Local< v8::External > external = v8::Handle<v8::External>::Cast(isolate->GetCallingContext()->Global()->GetHiddenValue(v8::String::NewFromUtf8(isolate, "inst")));
 	CScripto *p = (CScripto*)(external->Value());
@@ -776,7 +796,7 @@ void CScripto::Alert(const v8::FunctionCallbackInfo<v8::Value>& args)
 
 void CScripto::Confirm(const v8::FunctionCallbackInfo<v8::Value>& args)
 {
-	v8::Isolate* isolate = v8::Isolate::GetCurrent();
+	v8::Isolate* isolate = getInstanceIsolate();
 	v8::HandleScope handle_scope(isolate);
 
 	CComBSTR bstr;
@@ -804,8 +824,8 @@ void CScripto::Confirm(const v8::FunctionCallbackInfo<v8::Value>& args)
 
 void CScripto::InitContext()
 {
-	v8::V8::InitializeICU();
-	v8::Isolate* isolate = v8::Isolate::GetCurrent();
+	v8::Isolate* isolate = getInstanceIsolate();
+
 	v8::HandleScope handle_scope(isolate);
 
 	v8::Handle< v8::ObjectTemplate > wrapper = v8::ObjectTemplate::New(isolate);
@@ -849,7 +869,7 @@ void CScripto::ResetContext()
 
 v8::Local< v8::Object > CScripto::WrapDispatch(v8::Isolate *isolate, IDispatch *pdisp)
 {
-	// v8::Isolate* isolate = v8::Isolate::GetCurrent();
+	// v8::Isolate* isolate = getInstanceIsolate();
 	// v8::HandleScope handle_scope(isolate);
 
 	if (pdisp)
@@ -1186,8 +1206,12 @@ STDMETHODIMP CScripto::MapTypeLib(IDispatch *Dispatch, BSTR *Description)
 
 	// init script: why? so we can map enums
 	
-	v8::Isolate* isolate = v8::Isolate::GetCurrent();
+	v8::Isolate* isolate = getInstanceIsolate();
+	isolate->Enter();
 	v8::Locker locker(isolate);
+
+	ATLTRACE("Isolate: %x\n", (unsigned long)isolate);
+
 	v8::HandleScope handle_scope(isolate);
 	if (_context.IsEmpty()) InitContext();
 	v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, _context);
@@ -1269,6 +1293,7 @@ STDMETHODIMP CScripto::MapTypeLib(IDispatch *Dispatch, BSTR *Description)
 	bstrComposite.CopyTo(Description );
 
 	context->Exit();
+	isolate->Exit();
 
 	return S_OK;
 }
@@ -1278,7 +1303,12 @@ STDMETHODIMP CScripto::SetDispatch(IDispatch *Dispatch, BSTR* Name)
 	std::string name;
 	NarrowString(Name, name);
 
-	v8::Isolate* isolate = v8::Isolate::GetCurrent();
+	v8::Isolate* isolate = getInstanceIsolate();
+	isolate->Enter();
+	v8::Locker locker(isolate);
+
+	ATLTRACE("Isolate: %x\n", (unsigned long)isolate);
+
 	v8::HandleScope handle_scope(isolate);
 
 	dispatch_list.insert(std::pair< std::string, IDispatch* >(name, Dispatch));
@@ -1295,14 +1325,17 @@ STDMETHODIMP CScripto::SetDispatch(IDispatch *Dispatch, BSTR* Name)
 	context->Global()->Set(v8::String::NewFromUtf8(isolate, name.c_str()), instance);
 
 	context->Exit();
+	isolate->Exit();
 
 	return S_OK;
 }
 
 STDMETHODIMP CScripto::ExecString(BSTR* Script, BSTR* Result, VARIANT_BOOL* Success)
 {
-	v8::Isolate* isolate = v8::Isolate::GetCurrent();
+	v8::Isolate* isolate = getInstanceIsolate();
+	isolate->Enter();
 	v8::Locker locker(isolate);
+
 	v8::HandleScope handle_scope(isolate);
 
 	if (_context.IsEmpty()) InitContext();
@@ -1356,7 +1389,16 @@ STDMETHODIMP CScripto::ExecString(BSTR* Script, BSTR* Result, VARIANT_BOOL* Succ
 	*Result = SysAllocString(bstr);
 	*Success = success;
 
+	isolate->Exit();
+
 	return S_OK;
 }
 
+v8::Isolate* CScripto::getInstanceIsolate()
+{
+	if (instanceIsolate) return instanceIsolate;
+	instanceIsolate = v8::Isolate::New();
+	ATLTRACE("NEW ISOLATE: %x\n", (unsigned long)instanceIsolate);
+	return instanceIsolate;
+}
 

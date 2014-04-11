@@ -11,6 +11,9 @@
 #include <v8.h>
 #include <hash_map>
 
+/** default traits are non-copyable, doesn't play well with stl containers */
+typedef v8::Persistent<v8::Object, v8::CopyablePersistentTraits<v8::Object>> CopyablePersistentObj;
+
 #if defined(_WIN32_WCE) && !defined(_CE_DCOM) && !defined(_CE_ALLOW_SINGLE_THREADED_OBJECTS_IN_MTA)
 #error "Single-threaded COM objects are not properly supported on Windows CE platform, such as the Windows Mobile platforms that do not include full DCOM support. Define _CE_ALLOW_SINGLE_THREADED_OBJECTS_IN_MTA to force ATL to support creating single-thread COM object's and allow use of it's single-threaded COM object implementations. The threading model in your rgs file was set to 'Free' as that is the only threading model supported in non DCOM Windows CE platforms."
 #endif
@@ -36,6 +39,8 @@ public:
 	v8::Persistent<v8::ObjectTemplate > _wrapper;
 
 	DLIST dispatch_list;
+	std::hash_map < long, CopyablePersistentObj > object_map;
+	v8::Isolate *instanceIsolate = 0;
 
 	CScripto()
 	{
@@ -59,6 +64,7 @@ END_CONNECTION_POINT_MAP()
 
 	HRESULT FinalConstruct()
 	{
+		v8::V8::InitializeICU();
 		return S_OK;
 	}
 
@@ -70,6 +76,8 @@ END_CONNECTION_POINT_MAP()
 		{
 			if (iter->second) (iter->second)->Release();
 		}
+
+		if (instanceIsolate) instanceIsolate->Dispose();
 
 		v8::V8::Dispose();
 	}
@@ -89,10 +97,14 @@ public:
 	 */
 	STDMETHOD(MapTypeLib)(IDispatch* Dispatch, BSTR* Description);
 
+	v8::Isolate* getInstanceIsolate();
 
 	void Alert(const v8::FunctionCallbackInfo<v8::Value>& args);
 	void Confirm(const v8::FunctionCallbackInfo<v8::Value>& args);
 	void LogMessage(const v8::FunctionCallbackInfo<v8::Value>& args);
+
+	v8::Handle<v8::Object> MapPersistentObj(v8::Isolate *isolate, IDispatch *pdisp);
+	void RemovePersistentObj(IDispatch *pdisp);
 
 	HRESULT EventCallback(const v8::Persistent<v8::Function, v8::CopyablePersistentTraits<v8::Function>> func);
 
@@ -121,16 +133,6 @@ public:
 	std::string type;
 
 	MemberRep() : mrflags(0) {}
-
-	/* using pointers for the map
-
-	MemberRep(const MemberRep &rhs)
-	{
-		this->mrflags = rhs.mrflags;
-		this->name = rhs.name.c_str();
-		this->type = rhs.type.c_str();
-	}
-	*/
 
 };
 

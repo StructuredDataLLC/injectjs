@@ -34,6 +34,8 @@ namespace InjectExcel
 
         Scripto scripto = null;
 
+        public bool trackWidth = false;
+
         bool cinit = false;
 
         Dictionary<string, object> masterDict = null;
@@ -59,7 +61,7 @@ namespace InjectExcel
             SwapControls(logger, tbLog);
             logger.Font = tbLog.Font;
 
-            initContext();
+            // initContext();
 
             Globals.ThisAddIn.Application.WorkbookBeforeSave += app_WorkbookBeforeSave;
             Directory.SetCurrentDirectory(cwd);
@@ -82,7 +84,13 @@ namespace InjectExcel
             cbScriptLanguage.SelectedIndexChanged += cbScriptLanguage_SelectedIndexChanged;
 
             Load += taskPane_Load;
+            SizeChanged += scriptPane_SizeChanged;
+        }
 
+        void scriptPane_SizeChanged(object sender, EventArgs e)
+        {
+            if (trackWidth && null != Globals.ThisAddIn.TaskPane)
+                InjectExcel.Properties.Settings.Default.width = Globals.ThisAddIn.TaskPane.Width;
         }
 
         string findRootType( string token )
@@ -240,7 +248,7 @@ namespace InjectExcel
             LoadScript();
             editor.TextChanged += editor_TextChanged;
 
-            ConstructTypeMap();
+            initContext();
 
         }
 
@@ -283,6 +291,8 @@ namespace InjectExcel
         {
             scripto = new Scripto();
             scripto.SetDispatch(Globals.ThisAddIn.Application, "Application");
+            ConstructTypeMap();
+
             scripto.OnConsolePrint += scripto_OnConsolePrint;
             scripto.OnAlert += scripto_OnAlert;
             scripto.OnConfirm += scripto_OnConfirm;
