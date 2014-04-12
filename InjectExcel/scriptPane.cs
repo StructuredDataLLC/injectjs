@@ -32,13 +32,15 @@ namespace InjectExcel
 
         const string SCRIPT_XML_NAMESPACE = "http://tempuri.org/inject/script";
 
-        Scripto scripto = null;
+        // Scripto scripto = null;
 
         public bool trackWidth = false;
 
         bool cinit = false;
 
         Dictionary<string, object> masterDict = null;
+
+        Dictionary<long, InstanceData> slist = new Dictionary<long,InstanceData>();
 
         public scriptPane()
         {
@@ -87,6 +89,61 @@ namespace InjectExcel
             SizeChanged += scriptPane_SizeChanged;
         }
 
+        /**
+         * Excel 2007/2010 use a single window, therefore a single task pane,
+         * for multiple documents.  we can support this by using separate instances
+         * of the scripting environment per window.  we'll use the wb ID to 
+         * identify them.
+         * 
+         * For 2013 this is not necessary b/c it uses separate windows, and separate
+         * task panes, per doc.
+         */
+        public void SetInstance(long instanceID)
+        {
+            // we don't actually have to worry about script yet,
+            // but update the code window
+
+            IntPtr disp = Marshal.GetIDispatchForObject(Globals.ThisAddIn.Application.ActiveWorkbook);
+            long ID = (long)disp;
+            Marshal.Release(disp);
+
+            editor.TextChanged -= editor_TextChanged;
+            LoadScript();
+            editor.TextChanged += editor_TextChanged;
+
+            // FIXME: global/local dict...
+
+            // UPDATE: also the log, which we're preserving per-instance
+
+            if (!slist.ContainsKey(ID)) logger.Text = "";
+            else logger.Text = slist[ID].log;
+            logger.Scrolling.ScrollToLine(logger.Lines.Count);
+
+        }
+
+        public void SaveInstanceState(Excel.Workbook Wb)
+        {
+            if( null != Wb )
+            {
+                // FIXME (MAYBE): use a memory buffer instead?
+                // but isn't the xml just in memory, until it's 
+                // disk-saved?
+
+                IntPtr disp = Marshal.GetIDispatchForObject(Wb);
+                long ID = (long)disp;
+                Marshal.Release(disp);
+
+                SaveScript(Wb);
+
+                if (!slist.ContainsKey(ID))
+                {
+                    slist.Add(ID, new InstanceData());
+                }
+
+                slist[ID].log = logger.Text;
+            }
+        }
+
         void scriptPane_SizeChanged(object sender, EventArgs e)
         {
             if (trackWidth && null != Globals.ThisAddIn.TaskPane)
@@ -101,7 +158,8 @@ namespace InjectExcel
             if( masterDict.ContainsKey( token ))
             {
                 Dictionary<string, object> d = (Dictionary<string, object>)masterDict[token];
-                if (d["type"].Equals("enum")) return token;
+                if (d["type"].Equals("enum")
+                    || d["type"].Equals("user")) return token;
             }
             return null;
         }
@@ -155,7 +213,7 @@ namespace InjectExcel
                 if( null == key )
                     return (Dictionary<string, object>)d["values"];
             }
-            else // interface 
+            else // interface OR user
             {
                 if( null == key ) // return all members of this interface
                     return (Dictionary<string, object>) d["members"];
@@ -172,7 +230,7 @@ namespace InjectExcel
 
             if( e.KeyChar == 'l')
             {
-                Regex rex = new Regex(@"(?:^|[\W\s])Xl*");
+                Regex rex = new Regex(@"(?:^|[\W\s])Xl*", RegexOptions.IgnoreCase);
                 line = line.Substring(0, col);
                 Match m = rex.Match(line);
                 if (m.Success)
@@ -248,15 +306,31 @@ namespace InjectExcel
             LoadScript();
             editor.TextChanged += editor_TextChanged;
 
-            initContext();
+            // initContext();
+
+            ConstructTypeMap();
 
         }
 
         void ConstructTypeMap()
         {
+            /*
             string map = scripto.MapTypeLib(Globals.ThisAddIn.Application);
+            StreamWriter sw = new StreamWriter(@"e:\office-dev\excel.json");
+            sw.Write(map);
+            sw.Flush();
+            sw.Close();
+            */
+
             System.Web.Script.Serialization.JavaScriptSerializer serializer = new JavaScriptSerializer();
-            masterDict = (Dictionary<string, object>)(serializer.Deserialize<Object>(map));
+            masterDict = (Dictionary<string, object>)(serializer.Deserialize<Object>(InjectExcel.Properties.Resources.excel_interface));
+
+            Dictionary<string, object> tmp = (Dictionary<string, object>)(serializer.Deserialize<Object>(InjectExcel.Properties.Resources.extra_functions));
+            foreach( string key in tmp.Keys )
+            {
+                masterDict.Add(key, tmp[key]);
+            }
+
         }
 
         void app_WorkbookBeforeSave(Excel.Workbook Wb, bool SaveAsUI, ref bool Cancel)
@@ -270,12 +344,14 @@ namespace InjectExcel
 
         }
 
+        /*
         void app_WorkbookOpen(Excel.Workbook Wb)
         {
             editor.TextChanged -= editor_TextChanged;
             LoadScript();
             editor.TextChanged += editor_TextChanged;
         }
+        */
 
         public void SwapControls(Control newCtl, Control oldCtl)
         {
@@ -287,15 +363,26 @@ namespace InjectExcel
             oldCtl.Parent.Controls.Remove(oldCtl);
         }
         
-        void initContext()
+        Scripto ensureContext()
         {
-            scripto = new Scripto();
-            scripto.SetDispatch(Globals.ThisAddIn.Application, "Application");
-            ConstructTypeMap();
+            if (null == Globals.ThisAddIn.Application.ActiveWorkbook) return null;
 
-            scripto.OnConsolePrint += scripto_OnConsolePrint;
-            scripto.OnAlert += scripto_OnAlert;
-            scripto.OnConfirm += scripto_OnConfirm;
+            IntPtr disp = Marshal.GetIDispatchForObject(Globals.ThisAddIn.Application.ActiveWorkbook);
+            long ID = (long)disp;
+            Marshal.Release(disp);
+
+            if (!slist.ContainsKey(ID)) slist.Add(ID, new InstanceData());
+            if (null != slist[ID].scripto ) return slist[ID].scripto;
+
+            slist[ID].scripto = new Scripto();
+            slist[ID].scripto.SetDispatch(Globals.ThisAddIn.Application, "Application", true);
+            // ConstructTypeMap();
+
+            slist[ID].scripto.OnConsolePrint += scripto_OnConsolePrint;
+            slist[ID].scripto.OnAlert += scripto_OnAlert;
+            slist[ID].scripto.OnConfirm += scripto_OnConfirm;
+
+            return slist[ID].scripto;
         }
 
         void scripto_OnConfirm(ref string Msg, out bool Rslt)
@@ -331,6 +418,9 @@ namespace InjectExcel
             }), new object[] { message });
         }
 
+        /**
+         * mark a line in the editor window
+         */
         public void squiggle(int line)
         {
             --line;
@@ -342,6 +432,10 @@ namespace InjectExcel
             r.SetIndicator(2);
 
         }
+
+        /**
+         * clear editor marks 
+         */
         public void unsquiggle()
         {
             editor.NativeInterface.IndicatorClearRange(0, editor.Text.Length);
@@ -395,15 +489,24 @@ namespace InjectExcel
             return sb.ToString();
         }
 
+        /**
+         * execute code in current buffer
+         */
         private void bExec_Click(object sender, EventArgs e)
         {
-            if (null == scripto) initContext();
+            Scripto scripto = ensureContext();
+            if (null == scripto)
+            {
+                logMessage("No context");
+                return;
+            }
 
             try
             {
                 unsquiggle();
                 string script = editor.Text;
                 string output;
+                bool rslt;
 
                 // FIXME: this should be done closer to the 
                 // script engine, and also, source maps.
@@ -422,7 +525,7 @@ namespace InjectExcel
                     composite += jsescape(script);
                     composite += ");";
 
-                    bool rslt = scripto.ExecString(composite, out output);
+                    rslt = scripto.ExecString(composite, out output);
                     logMessage(output);
                     if (!rslt)
                     {
@@ -432,7 +535,7 @@ namespace InjectExcel
                 }
                 else
                 {
-                    bool rslt = scripto.ExecString(script, out output);
+                    rslt = scripto.ExecString(script, out output);
                     logMessage(output);
                     if (!rslt)
                     {
@@ -444,6 +547,12 @@ namespace InjectExcel
                         }
                     }
                 }
+
+                if( rslt )
+                {
+                    string glob = scripto.GetGlobal();
+                    Console.WriteLine(glob);
+                }
             }
             catch (Exception x)
             {
@@ -452,9 +561,10 @@ namespace InjectExcel
 
         }
 
-         void SaveScript()
+         void SaveScript ( Excel.Workbook wb = null )
         {
-            if (null == Globals.ThisAddIn.Application.ActiveWorkbook) return;
+            if (null == wb) wb = Globals.ThisAddIn.Application.ActiveWorkbook ;
+            if (null == wb) return;
 
             string version = "1.1";
             string lang = cbScriptLanguage.SelectedItem.ToString();
@@ -462,7 +572,7 @@ namespace InjectExcel
             string source = "<source language=\"" + lang + "\"><![CDATA[" + editor.Text + "]]></source>";
             string xmlString1 = "<script version=\"" + version + "\" xmlns=\"" + SCRIPT_XML_NAMESPACE + "\">" + source + "</script>";
 
-            Office.CustomXMLParts parts = Globals.ThisAddIn.Application.ActiveWorkbook.CustomXMLParts.SelectByNamespace(SCRIPT_XML_NAMESPACE);
+            Office.CustomXMLParts parts = wb.CustomXMLParts.SelectByNamespace(SCRIPT_XML_NAMESPACE);
             if (parts.Count > 0)
             {
                 Office.CustomXMLPart part = parts[1];
@@ -482,40 +592,58 @@ namespace InjectExcel
             }
             else
             {
-                Globals.ThisAddIn.Application.ActiveWorkbook.CustomXMLParts.Add(xmlString1);
+                wb.CustomXMLParts.Add(xmlString1);
             }
 
         }
 
         void LoadScript()
         {
-            if (null == Globals.ThisAddIn.Application.ActiveWorkbook) return;
-            Office.CustomXMLParts parts = Globals.ThisAddIn.Application.ActiveWorkbook.CustomXMLParts.SelectByNamespace(SCRIPT_XML_NAMESPACE);
-            if (parts.Count > 0)
+            string text = "";
+            string lang = "Javascript";
+
+            if (null != Globals.ThisAddIn.Application.ActiveWorkbook)
             {
-                Office.CustomXMLPart part = parts[1];
-                part.NamespaceManager.AddNamespace("N", SCRIPT_XML_NAMESPACE);
-
-                Office.CustomXMLNode node = part.SelectSingleNode("//N:source"); // .FirstChild;
-                if (null != node) editor.Text = node.FirstChild.NodeValue.ToString();
-
-                node = part.SelectSingleNode("//N:source/@language");
-                if (null == node) cbScriptLanguage.SelectedIndex = 0; // default
-                else
+                Office.CustomXMLParts parts = Globals.ThisAddIn.Application.ActiveWorkbook.CustomXMLParts.SelectByNamespace(SCRIPT_XML_NAMESPACE);
+                if (parts.Count > 0)
                 {
-                    string lang = node.NodeValue.ToString();
-                    for (int i = 0; i < cbScriptLanguage.Items.Count; i++)
+                    Office.CustomXMLPart part = parts[1];
+                    part.NamespaceManager.AddNamespace("N", SCRIPT_XML_NAMESPACE);
+
+                    Office.CustomXMLNode node = part.SelectSingleNode("//N:source"); // .FirstChild;
+                    if (null != node) text = node.FirstChild.NodeValue.ToString();
+
+                    node = part.SelectSingleNode("//N:source/@language");
+                    if (null != node) 
                     {
-                        if (cbScriptLanguage.Items[i].ToString().Equals(lang)) cbScriptLanguage.SelectedIndex = i;
+                        lang = node.NodeValue.ToString();
                     }
                 }
             }
+
+            cbScriptLanguage.SelectedIndex = 0;
+            for (int i = 0; i < cbScriptLanguage.Items.Count; i++)
+            {
+                if (cbScriptLanguage.Items[i].ToString().Equals(lang))
+                {
+                    cbScriptLanguage.SelectedIndex = i;
+                    break;
+                }
+            }
+            editor.Text = text;
         }
 
         private void bClearLog_Click(object sender, EventArgs e)
         {
             logger.Text = "";
         }
+    }
+
+    class InstanceData
+    {
+        public Scripto scripto = null;
+        public string buffer = "";
+        public string log = "";
     }
 
 

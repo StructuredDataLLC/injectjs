@@ -75,5 +75,45 @@ namespace InjectExcel.Properties {
                 return ResourceManager.GetString("coffee_script", resourceCulture);
             }
         }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {
+        ///&quot;Adjustments&quot;: { 
+        ///	&quot;type&quot;: &quot;dispatch&quot;, 
+        ///	&quot;members&quot;: {
+        ///		&quot;QueryInterface&quot;: { type:&quot;void&quot;, flags: 4 },
+        ///		&quot;AddRef&quot;: { type:&quot;uint&quot;, flags: 4 },
+        ///		&quot;GetIDsOfNames&quot;: { type:&quot;void&quot;, flags: 4 },
+        ///		&quot;Release&quot;: { type:&quot;uint&quot;, flags: 4 },
+        ///		&quot;GetTypeInfoCount&quot;: { type:&quot;void&quot;, flags: 4 },
+        ///		&quot;Application&quot;: { type:&quot;IDispatch&quot;, flags: 1 },
+        ///		&quot;GetTypeInfo&quot;: { type:&quot;void&quot;, flags: 4 },
+        ///		&quot;Invoke&quot;: { type:&quot;void&quot;, flags: 4 },
+        ///		&quot;Creator&quot;: { type:&quot;int&quot;, flags: 1 },
+        ///		&quot;Parent&quot;: { type:&quot;IDispatch&quot;, flags: 1 },
+        ///		&quot;Count&quot;: { type:&quot;i [rest of string was truncated]&quot;;.
+        /// </summary>
+        internal static string excel_interface {
+            get {
+                return ResourceManager.GetString("excel_interface", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {
+        ///	&quot;console&quot;: { 
+        ///		&quot;type&quot;: &quot;interface&quot;, 
+        ///		&quot;members&quot;: {
+        ///			&quot;log&quot;: { type:&quot;void&quot;, flags: 4 }
+        ///		}
+        ///	}
+        ///}
+        ///.
+        /// </summary>
+        internal static string extra_functions {
+            get {
+                return ResourceManager.GetString("extra_functions", resourceCulture);
+            }
+        }
     }
 }

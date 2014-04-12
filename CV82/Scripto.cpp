@@ -153,18 +153,27 @@ void invoker(const v8::FunctionCallbackInfo<v8::Value>& args)
 
 }
 
-void ReleasePtr(const v8::WeakCallbackData<v8::Object, IDispatch> &data )
+void ReleasePtr(const v8::WeakCallbackData<v8::Object, CScripto> &data )
 {
 	
 	v8::Isolate* isolate = data.GetIsolate();
 	v8::HandleScope handle_scope(isolate);
 
-	//printf("Release disp\n");
+	CScripto *scripto = data.GetParameter();
+
 	//if (data.GetParameter()) data.GetParameter()->Release();
 
 	v8::Handle<v8::External> check = v8::Handle<v8::External>::Cast(data.GetValue()->GetInternalField(1));
 	IDispatch *pdisp = (IDispatch*)(check->Value());
-	if (pdisp) pdisp->Release();
+	if (pdisp)
+	{
+		int x = pdisp->Release();
+		ATLTRACE("pdisp->Release returned %d\n", x);
+	}
+	scripto->RemovePersistentObj(pdisp);
+
+	ATLTRACE("Release ptr on weak callback: 0x%x\n", pdisp);
+
 	data.GetValue()->SetInternalField(1, v8::External::New(isolate, 0));
 
 	CComObject<CCVEventHandler>* pSink;
@@ -173,15 +182,17 @@ void ReleasePtr(const v8::WeakCallbackData<v8::Object, IDispatch> &data )
 	if (pSink) pSink->Release();
 	data.GetValue()->SetInternalField(2, v8::External::New(isolate, 0));
 
+
+
 }
 
-v8::Handle<v8::Object> CScripto::MapPersistentObj(v8::Isolate *isolate, IDispatch *pdisp)
+PWrap* CScripto::MapPersistentObj(v8::Isolate *isolate, IDispatch *pdisp)
 {
-	std::hash_map < long, CopyablePersistentObj > ::iterator iter = object_map.find((long)pdisp);
+	std::hash_map < long, PWrap* > ::iterator iter = object_map.find((long)pdisp);
 
 	if (iter != object_map.end())
 	{
-		return v8::Local<v8::Object>::New(isolate, iter->second);
+		return iter->second;
 	}
 
 	// wrap dispatch will addref.  we want to release it at some point.
@@ -190,20 +201,54 @@ v8::Handle<v8::Object> CScripto::MapPersistentObj(v8::Isolate *isolate, IDispatc
 	// FIXME: we need to force the GC to be more aggressive.  I think there's
 	// a build flag we can use.
 
-	v8::Local<v8::Object> rObj = WrapDispatch(isolate, pdisp);
-	v8::Persistent<v8::Object> pObj;
-	pObj.Reset(isolate, rObj);
-	pObj.SetWeak(pdisp, ReleasePtr);
+	PWrap *wrap = new PWrap;
 
-	object_map.insert(std::pair< long, CopyablePersistentObj >((long)pdisp, pObj));
+	{
+		v8::HandleScope scope(isolate);
+		v8::Local< v8::Object > local = WrapDispatch(isolate, pdisp);
 
-	return rObj;
+		UINT ui;
+		CComPtr< ITypeInfo > typeinfo;
+		CComBSTR bstr;
+
+		HRESULT hr = pdisp->GetTypeInfoCount(&ui);
+		if (SUCCEEDED(hr) && ui > 0)
+		{
+			hr = pdisp->GetTypeInfo(0, 1033, &typeinfo);
+		}
+		if (SUCCEEDED(hr))
+		{
+			hr = typeinfo->GetDocumentation(-1, &bstr, 0, 0, 0);
+		}
+		if (SUCCEEDED(hr))
+		{
+			std::string narrow;
+			NarrowString(&bstr, narrow);
+			// local->SetHiddenValue(v8::String::NewFromUtf8(isolate, "internaltype"), v8::String::NewFromUtf8(isolate, narrow.c_str()));
+			local->Set(v8::String::NewFromUtf8(isolate, "__internaltype"), v8::String::NewFromUtf8(isolate, narrow.c_str()));
+		}
+
+		wrap->p.Reset(isolate, local );
+		wrap->p.SetWeak<CScripto>(this, ReleasePtr);
+	}
+
+	ATLTRACE("Set weak: 0x%x\n", (unsigned long)pdisp);
+
+	object_map.insert(std::pair< long, PWrap* >((long)pdisp, wrap));
+
+	return wrap;
 }
 
 void CScripto::RemovePersistentObj(IDispatch *pdisp)
 {
-	std::hash_map < long, CopyablePersistentObj > ::iterator iter = object_map.find((long)pdisp);
-	if (iter != object_map.end()) object_map.erase(iter);
+	std::hash_map < long, PWrap* > ::iterator iter = object_map.find((long)pdisp);
+	if (iter != object_map.end())
+	{
+		PWrap *p = iter->second;
+		p->p.Reset();
+		object_map.erase(iter);
+		delete p;
+	}
 	
 }
 
@@ -211,8 +256,8 @@ void CScripto::SetRetVal(v8::Isolate* isolate, CComVariant &var, v8::ReturnValue
 {
 	switch (var.vt)
 	{
-	case VT_DISPATCH:
-		retval.Set(MapPersistentObj(isolate, var.pdispVal));
+	case VT_DISPATCH: // remember: can this actually be a persistent?
+		retval.Set((MapPersistentObj(isolate, var.pdispVal))->p);
 		break;
 	case VT_EMPTY:
 		retval.Set(v8::Undefined(isolate));
@@ -328,7 +373,6 @@ void CScripto::Invoker(const v8::FunctionCallbackInfo<v8::Value>& args)
 
 HRESULT CScripto::EventCallback(const v8::Persistent<v8::Function, v8::CopyablePersistentTraits<v8::Function>> func)
 {
-	// printf("Event callback\n");
 
 	v8::Isolate* isolate = getInstanceIsolate();
 	isolate->Enter();
@@ -362,7 +406,7 @@ void CScripto::Setter(v8::Local<v8::String> property, v8::Local<v8::Value> value
 	std::string propname = ToCString(v8::String::Utf8Value(property));
 	std::string valstr = ToCString(v8::String::Utf8Value(value));
 
-	// printf("setter: %s => %s\n", propname.c_str(), valstr.c_str());
+	// ATLTRACE("setter: %s => %s\n", propname.c_str(), valstr.c_str());
 
 	if (!pdisp) return;
 
@@ -430,7 +474,11 @@ void CScripto::Setter(v8::Local<v8::String> property, v8::Local<v8::Value> value
 													if( SUCCEEDED( hr )) hr = spTypeInfo3->GetTypeAttr(&pTatt2);
 													if( SUCCEEDED(hr))
 													{
-														printf("Nested deep");
+														std::string iface_string;
+														NarrowString( &bstr, iface_string );
+														ATLTRACE("%s\n", iface_string.c_str());
+
+														//ATLTRACE("Nested deep");
 														CComPtr<IUnknown> punk = 0;
 
 														if( SUCCEEDED( pdisp->QueryInterface(pTatt2->guid, (void**)&punk)))
@@ -631,7 +679,7 @@ void CScripto::Getter(v8::Local<v8::String> property, const v8::PropertyCallback
 	CComPtr<IDispatch> pdisp((IDispatch*)(disp->Value()));
 
 	std::string propname = ToCString(v8::String::Utf8Value(property));
-	printf("getter: %s\n", propname.c_str());
+	//ATLTRACE("getter: %s\n", propname.c_str());
 
 	if (!pdisp) return;
 
@@ -872,9 +920,13 @@ v8::Local< v8::Object > CScripto::WrapDispatch(v8::Isolate *isolate, IDispatch *
 	// v8::Isolate* isolate = getInstanceIsolate();
 	// v8::HandleScope handle_scope(isolate);
 
+	ATLTRACE("wrap dispatch: 0x%x\n", (unsigned long)pdisp);
+
 	if (pdisp)
 	{
-		pdisp->AddRef();
+		int x = 
+			pdisp->AddRef();
+		ATLTRACE("Addref returned %d\n", x);
 	}
 
 	v8::Local<v8::ObjectTemplate> wrapper = v8::Local<v8::ObjectTemplate>::New(isolate, _wrapper);
@@ -946,7 +998,8 @@ const char * vt_type(int vt)
 
 void map_returntype( std::string &rtype, TYPEDESC *ptdesc, CComPtr<ITypeInfo> typeinfo )
 {
-	HRESULT hr;
+	//HRESULT hr;
+
 	CComPtr< ITypeInfo > spTypeInfo2;
 	CComBSTR bstrName;
 
@@ -1056,7 +1109,7 @@ void mapInterface(std::string &output, std::string &name, CComPtr<ITypeInfo> typ
 					else
 					{
 						// this should not happen
-						printf("?");
+						ATLTRACE("unexpected case mrflags\n");
 					}
 
 					ifacemap.erase(iter);
@@ -1159,7 +1212,7 @@ void mapEnum(std::string &output, std::string &name, CComPtr<ITypeInfo> typeinfo
 			if (vd->varkind != VAR_CONST
 				|| vd->lpvarValue->vt != VT_I4)
 			{
-				printf("UNEXPECTED\n");
+				ATLTRACE("enum type not const/I4\n");
 			}
 
 			elementname.clear();
@@ -1186,13 +1239,28 @@ void mapEnum(std::string &output, std::string &name, CComPtr<ITypeInfo> typeinfo
 	v8::Local<v8::Object> inst = tmpl->NewInstance();
 	context->Global()->Set(v8::String::NewFromUtf8(isolate, name.c_str()), inst);
 
-	// printf("%s\n", output.c_str());
 
 }
 
 //-----------------------------------------------------------
 // exposed methods
 //-----------------------------------------------------------
+
+STDMETHODIMP CScripto::SetGlobal(BSTR *JSON)
+{
+	return E_NOTIMPL;
+}
+
+STDMETHODIMP CScripto::GetGlobal(BSTR *JSON)
+{
+	// it's a start
+
+	CComBSTR bstr = "JSON.stringify(this);";
+	VARIANT_BOOL vb;
+
+	return ExecString(&bstr, JSON, &vb);
+
+}
 
 STDMETHODIMP CScripto::MapTypeLib(IDispatch *Dispatch, BSTR *Description)
 {
@@ -1210,7 +1278,7 @@ STDMETHODIMP CScripto::MapTypeLib(IDispatch *Dispatch, BSTR *Description)
 	isolate->Enter();
 	v8::Locker locker(isolate);
 
-	ATLTRACE("Isolate: %x\n", (unsigned long)isolate);
+	// ATLTRACE("Isolate: %x\n", (unsigned long)isolate);
 
 	v8::HandleScope handle_scope(isolate);
 	if (_context.IsEmpty()) InitContext();
@@ -1245,7 +1313,8 @@ STDMETHODIMP CScripto::MapTypeLib(IDispatch *Dispatch, BSTR *Description)
 				{
 					std::string tname;
 					NarrowString(&bstrName, tname);
-					printf("%s\n", tname.c_str());
+					
+					
 					std::string tmpstr;
 
 					switch (tk)
@@ -1269,7 +1338,7 @@ STDMETHODIMP CScripto::MapTypeLib(IDispatch *Dispatch, BSTR *Description)
 						//break;
 
 					default:
-						printf("UNEXPECTED TKIND: %d\n", tk);
+						ATLTRACE("Unexpected tkind: %d\n", tk);
 						break;
 					}
 
@@ -1298,7 +1367,7 @@ STDMETHODIMP CScripto::MapTypeLib(IDispatch *Dispatch, BSTR *Description)
 	return S_OK;
 }
 
-STDMETHODIMP CScripto::SetDispatch(IDispatch *Dispatch, BSTR* Name)
+STDMETHODIMP CScripto::SetDispatch(IDispatch *Dispatch, BSTR* Name, VARIANT_BOOL MapEnums)
 {
 	std::string name;
 	NarrowString(Name, name);
@@ -1307,7 +1376,7 @@ STDMETHODIMP CScripto::SetDispatch(IDispatch *Dispatch, BSTR* Name)
 	isolate->Enter();
 	v8::Locker locker(isolate);
 
-	ATLTRACE("Isolate: %x\n", (unsigned long)isolate);
+	ATLTRACE("SetDispatch / Isolate: %x\n", (unsigned long)isolate);
 
 	v8::HandleScope handle_scope(isolate);
 
@@ -1316,13 +1385,64 @@ STDMETHODIMP CScripto::SetDispatch(IDispatch *Dispatch, BSTR* Name)
 	if (_context.IsEmpty()) InitContext();
 	v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, _context);
 	context->Enter();
-
+	
 	v8::Local< v8::Object > instance = WrapDispatch(isolate, Dispatch);
 
 	v8::Persistent<v8::Object> tmp;
 	tmp.Reset(isolate, instance);
 
 	context->Global()->Set(v8::String::NewFromUtf8(isolate, name.c_str()), instance);
+
+	// do the mapping of enums into the global namespace here, 
+	// since we're no longer consolidating that with the overall map
+	// routine.
+
+	// FIXME: again this could be done w/ JSON, since the object doesn't
+	// change...
+
+	if (MapEnums)
+	{
+		CComPtr<ITypeInfo> spTypeInfo;
+		CComPtr<ITypeLib> spTypeLib;
+
+		HRESULT hr = Dispatch->GetTypeInfo(0, 0, &spTypeInfo);
+
+		if (SUCCEEDED(hr) && spTypeInfo)
+		{
+			UINT tlidx;
+			hr = spTypeInfo->GetContainingTypeLib(&spTypeLib, &tlidx);
+		}
+
+		if (SUCCEEDED(hr))
+		{
+			UINT tlcount = spTypeLib->GetTypeInfoCount();
+			TYPEKIND tk;
+
+			for (UINT u = 0; u < tlcount; u++)
+			{
+				if (SUCCEEDED(spTypeLib->GetTypeInfoType(u, &tk)))
+				{
+					if ( tk == TKIND_ENUM )
+					{
+						CComBSTR bstrName;
+						TYPEATTR *pTatt = nullptr;
+						CComPtr<ITypeInfo> spTypeInfo2;
+						hr = spTypeLib->GetTypeInfo(u, &spTypeInfo2);
+						if (SUCCEEDED(hr)) hr = spTypeInfo2->GetTypeAttr(&pTatt);
+						if (SUCCEEDED(hr)) hr = spTypeInfo2->GetDocumentation(-1, &bstrName, 0, 0, 0);
+						if (SUCCEEDED(hr))
+						{
+							std::string tname;
+							NarrowString(&bstrName, tname);
+							std::string tmpstr;
+							mapEnum(tmpstr, tname, spTypeInfo2, pTatt, context);
+						}
+						if (pTatt) spTypeInfo2->ReleaseTypeAttr(pTatt);
+					}
+				}
+			}
+		}
+	}
 
 	context->Exit();
 	isolate->Exit();
@@ -1332,64 +1452,69 @@ STDMETHODIMP CScripto::SetDispatch(IDispatch *Dispatch, BSTR* Name)
 
 STDMETHODIMP CScripto::ExecString(BSTR* Script, BSTR* Result, VARIANT_BOOL* Success)
 {
-	v8::Isolate* isolate = getInstanceIsolate();
-	isolate->Enter();
-	v8::Locker locker(isolate);
-
-	v8::HandleScope handle_scope(isolate);
-
-	if (_context.IsEmpty()) InitContext();
-
-	v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, _context); 
-
-	CComBSTR wide(*Script);
-	std::string narrow;
-
-	int len = wide.Length();
-	for (int i = 0; i < len; i++) narrow += (char)(wide.m_str[i] & 0xff);
-
-	context->Enter();
-
-	v8::Context::Scope context_scope(context);
-	v8::Local<v8::String> name(v8::String::NewFromUtf8(context->GetIsolate(), "(shell)"));
-
 	std::string result;
-
-	v8::TryCatch try_catch;
-	v8::ScriptOrigin origin(name);
-	v8::Handle<v8::Script> script = v8::Script::Compile(v8::String::NewFromUtf8(context->GetIsolate(), narrow.c_str()));
-
 	bool success = false;
 
-	if (script.IsEmpty()) {
-		FormatException(isolate, &try_catch, result);
-	}
-	else {
-		v8::Handle<v8::Value> script_result = script->Run();
-		if (script_result.IsEmpty()) {
+	// scoping v8
+	{
+
+		v8::Isolate* isolate = getInstanceIsolate();
+		isolate->Enter();
+		v8::Locker locker(isolate);
+
+		v8::HandleScope handle_scope(isolate);
+
+		if (_context.IsEmpty()) InitContext();
+
+		v8::Local<v8::Context> context = v8::Local<v8::Context>::New(isolate, _context);
+
+		CComBSTR wide(*Script);
+		std::string narrow;
+
+		int len = wide.Length();
+		for (int i = 0; i < len; i++) narrow += (char)(wide.m_str[i] & 0xff);
+
+		context->Enter();
+
+		v8::Context::Scope context_scope(context);
+		v8::Local<v8::String> name(v8::String::NewFromUtf8(context->GetIsolate(), "(shell)"));
+
+
+		v8::TryCatch try_catch;
+		v8::ScriptOrigin origin(name);
+		v8::Handle<v8::Script> script = v8::Script::Compile(v8::String::NewFromUtf8(context->GetIsolate(), narrow.c_str()));
+
+		if (script.IsEmpty()) {
 			FormatException(isolate, &try_catch, result);
 		}
 		else {
-			if (!script_result->IsUndefined()) {
-
-				v8::String::Utf8Value str(script_result);
-				const char* cstr = ToCString(str);
-				result = cstr;
+			v8::Handle<v8::Value> script_result = script->Run();
+			if (script_result.IsEmpty()) {
+				FormatException(isolate, &try_catch, result);
 			}
-			success = true;
+			else {
+				if (!script_result->IsUndefined()) {
+
+					v8::String::Utf8Value str(script_result);
+					const char* cstr = ToCString(str);
+					result = cstr;
+				}
+				success = true;
+			}
 		}
+
+		context->Exit();
+
+		v8::V8::LowMemoryNotification();
+		while (!v8::V8::IdleNotification());
+
+		isolate->Exit();
 	}
-
-	context->Exit();
-
-	// printf("ok: %s\n", result.c_str());
 
 	CComBSTR bstr = result.c_str();
 
 	*Result = SysAllocString(bstr);
 	*Success = success;
-
-	isolate->Exit();
 
 	return S_OK;
 }

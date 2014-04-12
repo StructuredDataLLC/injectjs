@@ -11,6 +11,12 @@
 #include <v8.h>
 #include <hash_map>
 
+class PWrap
+{
+public:
+	v8::Persistent< v8::Object > p;
+};
+
 /** default traits are non-copyable, doesn't play well with stl containers */
 typedef v8::Persistent<v8::Object, v8::CopyablePersistentTraits<v8::Object>> CopyablePersistentObj;
 
@@ -39,7 +45,7 @@ public:
 	v8::Persistent<v8::ObjectTemplate > _wrapper;
 
 	DLIST dispatch_list;
-	std::hash_map < long, CopyablePersistentObj > object_map;
+	std::hash_map < long, PWrap* > object_map;
 	v8::Isolate *instanceIsolate = 0;
 
 	CScripto()
@@ -84,7 +90,7 @@ END_CONNECTION_POINT_MAP()
 
 public:
 
-	STDMETHOD(SetDispatch)(IDispatch *Dispatch, BSTR* Name);
+	STDMETHOD(SetDispatch)(IDispatch *Dispatch, BSTR* Name, VARIANT_BOOL MapEnums);
 	STDMETHOD(ExecString)(BSTR* Script, BSTR* Result, VARIANT_BOOL* Success);
 
 	/**
@@ -94,8 +100,26 @@ public:
 	 *
 	 * we can take the opportunity to populate enums in the 
 	 * script context.
+	 *
+	 * actually check that, doing both at the same time is
+	 * sloppy, we should just do one or the other.  also we 
+	 * can cache the results as a text file and stick it in
+	 * as a resource, no need to do this every time.
 	 */
 	STDMETHOD(MapTypeLib)(IDispatch* Dispatch, BSTR* Description);
+
+	/**
+	 * get global object as JSON.  
+	 */
+	STDMETHOD(GetGlobal)(BSTR* JSON);
+
+	/**
+	 * set fields in the global object using JSON.  note that this 
+	 * won't clean out any junk in there, unless it's explicitly
+	 * set to null.  this method should be called UpdateGlobal or 
+	 * something.
+	 */
+	STDMETHOD(SetGlobal)(BSTR* JSON);
 
 	v8::Isolate* getInstanceIsolate();
 
@@ -103,7 +127,7 @@ public:
 	void Confirm(const v8::FunctionCallbackInfo<v8::Value>& args);
 	void LogMessage(const v8::FunctionCallbackInfo<v8::Value>& args);
 
-	v8::Handle<v8::Object> MapPersistentObj(v8::Isolate *isolate, IDispatch *pdisp);
+	PWrap* MapPersistentObj(v8::Isolate *isolate, IDispatch *pdisp);
 	void RemovePersistentObj(IDispatch *pdisp);
 
 	HRESULT EventCallback(const v8::Persistent<v8::Function, v8::CopyablePersistentTraits<v8::Function>> func);
@@ -135,5 +159,7 @@ public:
 	MemberRep() : mrflags(0) {}
 
 };
+
+
 
 OBJECT_ENTRY_AUTO(__uuidof(Scripto), CScripto)

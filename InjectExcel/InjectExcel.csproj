@@ -111,11 +111,10 @@
   -->
   <ItemGroup>
     <Reference Include="Accessibility" />
-    <Reference Include="CustomMarshalers" />
     <Reference Include="CV82Lib, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
       <EmbedInteropTypes>True</EmbedInteropTypes>
-      <HintPath>..\Build\bin\x86\Debug\CV82Lib.dll</HintPath>
+      <HintPath>..\Build\bin\x86\Release\CV82Lib.dll</HintPath>
     </Reference>
     <Reference Include="ScintillaNET">
       <HintPath>..\..\ScintillaNET v2.6\ScintillaNET.dll</HintPath>
@@ -229,6 +228,8 @@
       <Link>SciLexer64.dll</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <None Include="Resources\extra-functions.js" />
+    <None Include="Resources\excel-interface.js" />
     <None Include="Resources\coffee-script.js" />
   </ItemGroup>
   <PropertyGroup>

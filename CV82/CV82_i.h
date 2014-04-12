@@ -4,7 +4,7 @@
 
 
  /* File created by MIDL compiler version 8.00.0603 */
-/* at Fri Apr 11 09:10:40 2014
+/* at Fri Apr 11 15:29:11 2014
  */
 /* Compiler settings for CV82.idl:
     Oicf, W1, Zp8, env=Win32 (32b run), target_arch=X86 8.00.0603 
@@ -116,7 +116,8 @@ EXTERN_C const IID IID_IScripto;
     public:
         virtual /* [id] */ HRESULT STDMETHODCALLTYPE SetDispatch( 
             /* [in] */ IDispatch *Dispatch,
-            /* [in] */ BSTR *Name) = 0;
+            /* [in] */ BSTR *Name,
+            /* [in] */ VARIANT_BOOL MapEnums) = 0;
         
         virtual /* [id] */ HRESULT STDMETHODCALLTYPE ExecString( 
             /* [in] */ BSTR *Script,
@@ -126,6 +127,12 @@ EXTERN_C const IID IID_IScripto;
         virtual /* [id] */ HRESULT STDMETHODCALLTYPE MapTypeLib( 
             /* [in] */ IDispatch *Dispatch,
             /* [retval][out] */ BSTR *Description) = 0;
+        
+        virtual /* [id] */ HRESULT STDMETHODCALLTYPE GetGlobal( 
+            /* [retval][out] */ BSTR *JSON) = 0;
+        
+        virtual /* [id] */ HRESULT STDMETHODCALLTYPE SetGlobal( 
+            /* [in] */ BSTR *JSON) = 0;
         
     };
     
@@ -188,7 +195,8 @@ EXTERN_C const IID IID_IScripto;
         /* [id] */ HRESULT ( STDMETHODCALLTYPE *SetDispatch )( 
             IScripto * This,
             /* [in] */ IDispatch *Dispatch,
-            /* [in] */ BSTR *Name);
+            /* [in] */ BSTR *Name,
+            /* [in] */ VARIANT_BOOL MapEnums);
         
         /* [id] */ HRESULT ( STDMETHODCALLTYPE *ExecString )( 
             IScripto * This,
@@ -200,6 +208,14 @@ EXTERN_C const IID IID_IScripto;
             IScripto * This,
             /* [in] */ IDispatch *Dispatch,
             /* [retval][out] */ BSTR *Description);
+        
+        /* [id] */ HRESULT ( STDMETHODCALLTYPE *GetGlobal )( 
+            IScripto * This,
+            /* [retval][out] */ BSTR *JSON);
+        
+        /* [id] */ HRESULT ( STDMETHODCALLTYPE *SetGlobal )( 
+            IScripto * This,
+            /* [in] */ BSTR *JSON);
         
         END_INTERFACE
     } IScriptoVtbl;
@@ -237,14 +253,20 @@ EXTERN_C const IID IID_IScripto;
     ( (This)->lpVtbl -> Invoke(This,dispIdMember,riid,lcid,wFlags,pDispParams,pVarResult,pExcepInfo,puArgErr) ) 
 
 
-#define IScripto_SetDispatch(This,Dispatch,Name)	\
-    ( (This)->lpVtbl -> SetDispatch(This,Dispatch,Name) ) 
+#define IScripto_SetDispatch(This,Dispatch,Name,MapEnums)	\
+    ( (This)->lpVtbl -> SetDispatch(This,Dispatch,Name,MapEnums) ) 
 
 #define IScripto_ExecString(This,Script,Result,Success)	\
     ( (This)->lpVtbl -> ExecString(This,Script,Result,Success) ) 
 
 #define IScripto_MapTypeLib(This,Dispatch,Description)	\
     ( (This)->lpVtbl -> MapTypeLib(This,Dispatch,Description) ) 
+
+#define IScripto_GetGlobal(This,JSON)	\
+    ( (This)->lpVtbl -> GetGlobal(This,JSON) ) 
+
+#define IScripto_SetGlobal(This,JSON)	\
+    ( (This)->lpVtbl -> SetGlobal(This,JSON) ) 
 
 #endif /* COBJMACROS */
 
