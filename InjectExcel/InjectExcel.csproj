@@ -228,6 +228,7 @@
       <Link>SciLexer64.dll</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <None Include="Resources\js.xml" />
     <None Include="Resources\extra-functions.js" />
     <None Include="Resources\excel-interface.js" />
     <None Include="Resources\coffee-script.js" />

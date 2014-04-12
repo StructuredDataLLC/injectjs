@@ -55,9 +55,17 @@ namespace InjectExcel
             Directory.SetCurrentDirectory(dir);
 
             editor = new Scintilla();
+            editor.ConfigurationManager.CustomLocation = Globals.ThisAddIn.ConfigPath;
+            
+            editor.Folding.UseCompactFolding = true;
+            editor.Margins[1].IsClickable = true;
+            editor.Margins[1].IsFoldMargin = true;
+            editor.Margins[1].Width = 20;
+
             SwapControls(editor, tbEditor);
+
             editor.ConfigurationManager.Language = "js";
-            editor.Margins[0].Width = 20;
+            editor.Margins[0].Width = 30;
 
             logger = new Scintilla();
             SwapControls(logger, tbLog);

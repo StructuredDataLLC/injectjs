@@ -81,17 +81,16 @@ namespace InjectExcel.Properties {
         ///&quot;Adjustments&quot;: { 
         ///	&quot;type&quot;: &quot;dispatch&quot;, 
         ///	&quot;members&quot;: {
-        ///		&quot;QueryInterface&quot;: { type:&quot;void&quot;, flags: 4 },
-        ///		&quot;AddRef&quot;: { type:&quot;uint&quot;, flags: 4 },
-        ///		&quot;GetIDsOfNames&quot;: { type:&quot;void&quot;, flags: 4 },
-        ///		&quot;Release&quot;: { type:&quot;uint&quot;, flags: 4 },
-        ///		&quot;GetTypeInfoCount&quot;: { type:&quot;void&quot;, flags: 4 },
-        ///		&quot;Application&quot;: { type:&quot;IDispatch&quot;, flags: 1 },
-        ///		&quot;GetTypeInfo&quot;: { type:&quot;void&quot;, flags: 4 },
-        ///		&quot;Invoke&quot;: { type:&quot;void&quot;, flags: 4 },
-        ///		&quot;Creator&quot;: { type:&quot;int&quot;, flags: 1 },
-        ///		&quot;Parent&quot;: { type:&quot;IDispatch&quot;, flags: 1 },
-        ///		&quot;Count&quot;: { type:&quot;i [rest of string was truncated]&quot;;.
+        ///		&quot;QueryInterface&quot;: { &quot;type&quot;:&quot;void&quot;, &quot;flags&quot;: 4 },
+        ///		&quot;AddRef&quot;: { &quot;type&quot;:&quot;uint&quot;, &quot;flags&quot;: 4 },
+        ///		&quot;GetIDsOfNames&quot;: { &quot;type&quot;:&quot;void&quot;, &quot;flags&quot;: 4 },
+        ///		&quot;Release&quot;: { &quot;type&quot;:&quot;uint&quot;, &quot;flags&quot;: 4 },
+        ///		&quot;GetTypeInfoCount&quot;: { &quot;type&quot;:&quot;void&quot;, &quot;flags&quot;: 4 },
+        ///		&quot;Application&quot;: { &quot;type&quot;:&quot;IDispatch&quot;, &quot;flags&quot;: 1 },
+        ///		&quot;GetTypeInfo&quot;: { &quot;type&quot;:&quot;void&quot;, &quot;flags&quot;: 4 },
+        ///		&quot;Invoke&quot;: { &quot;type&quot;:&quot;void&quot;, &quot;flags&quot;: 4 },
+        ///		&quot;Creator&quot;: { &quot;type&quot;:&quot;int&quot;, &quot;flags&quot;: 1 },
+        ///		&quot;Parent&quot;: { &quot;type&quot;:&quot;IDispa [rest of string was truncated]&quot;;.
         /// </summary>
         internal static string excel_interface {
             get {
@@ -102,10 +101,11 @@ namespace InjectExcel.Properties {
         /// <summary>
         ///   Looks up a localized string similar to {
         ///	&quot;console&quot;: { 
-        ///		&quot;type&quot;: &quot;interface&quot;, 
+        ///		&quot;type&quot;: &quot;user&quot;, 
         ///		&quot;members&quot;: {
-        ///			&quot;log&quot;: { type:&quot;void&quot;, flags: 4 }
-        ///		}
+        ///		    &quot;log&quot;: { type:&quot;void&quot;, flags: 4 },
+        ///		    &quot;info&quot;: { type:&quot;void&quot;, flags: 4 }
+        ///        }
         ///	}
         ///}
         ///.
@@ -113,6 +113,27 @@ namespace InjectExcel.Properties {
         internal static string extra_functions {
             get {
                 return ResourceManager.GetString("extra_functions", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to &lt;?xml version=&quot;1.0&quot; encoding=&quot;utf-8&quot;?&gt;
+        ///&lt;ScintillaNET&gt;
+        ///	&lt;Language Name=&quot;js&quot;&gt;
+        ///    
+        ///      &lt;Styles&gt;
+        ///			&lt;Style Name=&quot;Default&quot; FontName=&quot;Consolas&quot;/&gt;
+        ///		&lt;/Styles&gt;
+        ///        
+        ///		&lt;AutoComplete FillUpCharacters=&quot;.([&quot; SingleLineAccept=&quot;True&quot; IsCaseSensitive=&quot;False&quot;&gt;
+        ///			&lt;List&gt;
+        ///				abstract boolean break byte case catch char class const continue debugger default delete do double
+        ///				else enum export extends false final finally float for function goto if implements import in
+        ///				instanceof int interface long nati [rest of string was truncated]&quot;;.
+        /// </summary>
+        internal static string js {
+            get {
+                return ResourceManager.GetString("js", resourceCulture);
             }
         }
     }

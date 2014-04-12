@@ -24,6 +24,13 @@ namespace InjectExcel
 
         private Dictionary<long, Microsoft.Office.Tools.CustomTaskPane> multipane_list;
 
+        string xmlpath = null;
+
+        public String ConfigPath
+        {
+            get { return xmlpath; }
+        }
+
         public Microsoft.Office.Tools.CustomTaskPane TaskPane
         {
             get { return pane; }
@@ -33,6 +40,12 @@ namespace InjectExcel
         {
             double version = 0;
             double.TryParse(Application.Version, out version);
+
+            xmlpath = System.IO.Path.GetTempFileName();
+            System.IO.StreamWriter sw = new StreamWriter(xmlpath);
+            sw.Write(InjectExcel.Properties.Resources.js);
+            sw.Flush();
+            sw.Close();
 
             if (version < 12.0) // not supported
             {
@@ -194,6 +207,7 @@ namespace InjectExcel
         private void ThisAddIn_Shutdown(object sender, System.EventArgs e)
         {
             InjectExcel.Properties.Settings.Default.Save();
+            File.Delete(xmlpath);
         }
         
         #region VSTO generated code
