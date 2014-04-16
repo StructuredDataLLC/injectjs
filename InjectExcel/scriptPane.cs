@@ -37,6 +37,7 @@ namespace InjectExcel
         public bool trackWidth = false;
 
         bool cinit = false;
+        bool editor_ac_init = false;
 
         Dictionary<string, object> masterDict = null;
 
@@ -81,6 +82,8 @@ namespace InjectExcel
             // initContext();
 
             Globals.ThisAddIn.Application.WorkbookBeforeSave += app_WorkbookBeforeSave;
+            Globals.ThisAddIn.Application.WorkbookActivate += Application_WorkbookActivate;
+
             Directory.SetCurrentDirectory(cwd);
 
             editor.TextChanged += editor_TextChanged;
@@ -102,6 +105,11 @@ namespace InjectExcel
 
             Load += taskPane_Load;
             SizeChanged += scriptPane_SizeChanged;
+        }
+
+        void Application_WorkbookActivate(Excel.Workbook Wb)
+        {
+            setup_autocomplete();
         }
 
         /**
@@ -314,17 +322,24 @@ namespace InjectExcel
                 Globals.ThisAddIn.Application.ActiveWorkbook.Saved = false;
         }
 
-        void taskPane_Load(object sender, EventArgs e)
+        void setup_autocomplete()
         {
-            if (Globals.ThisAddIn.Application.ActiveWorkbook == null) return;
+            if (editor_ac_init) return;
+            editor_ac_init = true;
+
             editor.TextChanged -= editor_TextChanged;
             LoadScript();
             editor.TextChanged += editor_TextChanged;
 
-            // initContext();
-
             ConstructTypeMap();
 
+        }
+
+
+        void taskPane_Load(object sender, EventArgs e)
+        {
+            if (Globals.ThisAddIn.Application.ActiveWorkbook == null) return;
+            setup_autocomplete();
         }
 
         void ConstructTypeMap()
@@ -389,9 +404,17 @@ namespace InjectExcel
             if (!slist.ContainsKey(ID)) slist.Add(ID, new InstanceData());
             if (null != slist[ID].scripto ) return slist[ID].scripto;
 
-            slist[ID].scripto = new Scripto();
+            try
+            {
+                slist[ID].scripto = new Scripto();
+            }
+            catch( Exception e )
+            {
+                MessageBox.Show("The scripting library could not be created.  Please check your installation.");
+                throw e; // propogate
+            }
+
             slist[ID].scripto.SetDispatch(Globals.ThisAddIn.Application, "Application", true);
-            // ConstructTypeMap();
 
             slist[ID].scripto.OnConsolePrint += scripto_OnConsolePrint;
             slist[ID].scripto.OnAlert += scripto_OnAlert;

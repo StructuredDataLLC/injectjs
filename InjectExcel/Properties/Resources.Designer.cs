@@ -122,14 +122,14 @@ namespace InjectExcel.Properties {
         ///	&lt;Language Name=&quot;js&quot;&gt;
         ///    
         ///      &lt;Styles&gt;
-        ///			&lt;Style Name=&quot;Default&quot; FontName=&quot;Consolas&quot;/&gt;
+        ///			&lt;Style Name=&quot;Default&quot; FontName=&quot;Consolas&quot; /&gt;
         ///		&lt;/Styles&gt;
         ///        
         ///		&lt;AutoComplete FillUpCharacters=&quot;.([&quot; SingleLineAccept=&quot;True&quot; IsCaseSensitive=&quot;False&quot;&gt;
         ///			&lt;List&gt;
         ///				abstract boolean break byte case catch char class const continue debugger default delete do double
         ///				else enum export extends false final finally float for function goto if implements import in
-        ///				instanceof int interface long nati [rest of string was truncated]&quot;;.
+        ///				instanceof int interface long nat [rest of string was truncated]&quot;;.
         /// </summary>
         internal static string js {
             get {

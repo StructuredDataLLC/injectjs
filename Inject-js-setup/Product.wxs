@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  
+  <!--  thanks to 
+        http://blogs.msdn.com/b/gsmyth/archive/2013/01/27/wix-installer-for-vsto-projects.aspx
+        for tips on vsto/wix -->
+  
+	<Product Id="*" Name="Inject-js" Language="1033" Version="1.0.0.0" Manufacturer="Structured Data LLC" UpgradeCode="7d9f7d4d-4b9f-4d16-a28f-349e9562729b">
+    
+		<Package InstallerVersion="200" Compressed="yes" InstallScope="perUser"/>
+
+    <Property Id="OLDVERSION" Secure="yes" />
+    <Upgrade Id="7d9f7d4d-4b9f-4d16-a28f-349e9562729b">
+      <UpgradeVersion
+             Minimum="1.0.0.0" Maximum="99.0.0.0"
+             Property="OLDVERSION"
+             IncludeMinimum="yes" IncludeMaximum="no" />
+    </Upgrade>
+    
+    <MediaTemplate EmbedCab="yes"  />
+    
+    <Feature Id="ProductFeature" Title="Inject-js" Level="1">
+      <ComponentRef Id="CMP_AddIn" />
+      <ComponentRef Id="CMP_DllManifest" />
+      <ComponentRef Id="CMP_VstoManifest" />
+      <ComponentRef Id="CMP_ToolsCommon" />
+      <ComponentRef Id="CMP_Deps" />
+    </Feature>
+
+    <WixVariable Id="WixUILicenseRtf" Value="..\license.rtf" />
+    <Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER"/>
+    
+    <UIRef Id="WixUI_InstallDir" />
+    <UIRef Id="WixUI_ErrorProgressText" />
+
+
+    <InstallExecuteSequence>
+      <RemoveExistingProducts Before="InstallInitialize" />
+      
+      <Custom Action="Unregister" After='InstallInitialize'>Installed AND NOT UPGRADINGPRODUCTCODE</Custom>
+      <Custom Action="Register" After='InstallFinalize'>NOT ( Installed AND NOT UPGRADINGPRODUCTCODE )</Custom>
+
+    </InstallExecuteSequence>
+
+     <!-- you're not supposed to do this, but wix/msi will write to the wrong 
+          side of the registry if the installer bitness doesn't match the machine 
+          bitness -->
+    
+    <CustomAction Id='Register' Directory='INSTALLFOLDER' Execute='immediate' ExeCommand='Regsvr32 /s /n /i:user &quot;[#FILE_CV82]&quot;' Return='asyncWait'/>
+    <CustomAction Id='Unregister' Directory='INSTALLFOLDER' Execute='immediate' ExeCommand='Regsvr32 /s /u /n /i:user &quot;[#FILE_CV82]&quot;' Return='asyncWait'/>
+
+  </Product>
+
+  <Fragment>
+  
+  <Directory Id="TARGETDIR" Name="SourceDir">
+    <Directory Id="AppDataFolder">
+      <Directory Id="INSTALLFOLDER" Name="InjectExcel">
+
+        <Component Id="CMP_AddIn" Guid="0ED208C4-27AA-4ADB-AB19-6FCC5AE1BCBB">
+          <File Id="FILE_AddIn" Source="$(var.InjectExcel.TargetPath)" />
+          <RegistryValue Root='HKCU' Key='Software\SDLLC\Inject-js' Name='InstallDir' Value='[INSTALLDIR]' Type='string' KeyPath='yes' />
+          <RemoveFolder Id='INSTALLDIR' On='uninstall' />
+        </Component>
+        
+        <Component Id="CMP_DllManifest" Guid="{7CF64171-0578-4FC0-89A0-2CF40DEADF01}">
+          <File Id="FILE_DllManifest" Source="$(var.InjectExcel.TargetPath).manifest"  />
+          <RegistryValue Root='HKCU' Key='Software\SDLLC\Inject-js' Name='InstallDir' Value='[INSTALLDIR]' Type='string' KeyPath='yes' />
+        </Component>
+        
+        <Component Id="CMP_VstoManifest" Guid="{D199987B-2939-42EB-BAF0-5F198333CF47}">
+          <File Id="FILE_VstoManifest" Source="$(var.InjectExcel.TargetDir)$(var.InjectExcel.TargetName).vsto" />
+          <RegistryKey Root="HKCU" Key="Software\Microsoft\Office\Excel\Addins\Inject-js">
+            <RegistryValue Name="Description" Value="Inject-js Add-In" Type="string" Action="write" />
+            <RegistryValue Name="FriendlyName" Value="Inject-js" Type="string" Action="write" />
+            <RegistryValue Name="LoadBehavior" Value="3" Type="integer" Action="write" />
+            <RegistryValue Name="Manifest" Value="[#FILE_VstoManifest]|vstolocal" Type="string" Action="write" />
+          </RegistryKey>
+          <RegistryValue Root='HKCU' Key='Software\SDLLC\Inject-js' Name='InstallDir' Value='[INSTALLDIR]' Type='string' KeyPath='yes' />
+        </Component>
+        
+        <Component Id="CMP_ToolsCommon" Guid="{2ECDCAA9-16EC-44AE-B1BF-19B381818CAC}">
+          <File Id="FILE_ToolsCommon" Source="$(var.InjectExcel.TargetDir)Microsoft.Office.Tools.Common.v4.0.Utilities.dll" />
+          <RegistryValue Root='HKCU' Key='Software\SDLLC\Inject-js' Name='InstallDir' Value='[INSTALLDIR]' Type='string' KeyPath='yes' />
+        </Component>
+
+        <Component Id="CMP_Deps" Guid="{1414671B-33B0-4016-9E47-E04EBBD5B07B}">
+
+          <File Id="FILE_CV82" Source="$(var.InjectExcel.TargetDir)CV82.dll" />
+          <File Id="FILE_icudt" Source="$(var.InjectExcel.TargetDir)icudt.dll" />
+          <File Id="FILE_icui18n" Source="$(var.InjectExcel.TargetDir)icui18n.dll" />
+          <File Id="FILE_icuuc" Source="$(var.InjectExcel.TargetDir)icuuc.dll" />
+
+          <File Id="FILE_SciLexer" Source="$(var.InjectExcel.TargetDir)SciLexer.dll" />
+          <File Id="FILE_SciLexer64" Source="$(var.InjectExcel.TargetDir)SciLexer64.dll" />
+          <File Id="FILE_ScintillaNET" Source="$(var.InjectExcel.TargetDir)ScintillaNET.dll" />
+          <File Id="FILE_v8" Source="$(var.InjectExcel.TargetDir)v8.dll" />
+
+          <RegistryValue Root='HKCU' Key='Software\SDLLC\Inject-js' Name='InstallDir' Value='[INSTALLDIR]' Type='string' KeyPath='yes' />
+
+          <!-- 
+          <RegistryKey Root="HKCU" Key="Software\Classes\CLSID\{03A48679-F8A2-4AFE-8D38-428C2191C0F7}">
+            <RegistryValue Type="string" Action="write" Value="Scripto Class"/>
+            <RegistryKey Key="Programmable" ForceCreateOnInstall="yes" ForceDeleteOnUninstall="yes"/>
+            <RegistryKey Key="InprocServer32">
+              <RegistryValue Type="string" Action="write" Value="[#FILE_CV82]"/>
+              <RegistryValue Name="ThreadingModel" Type="string" Action="write" Value="Apartment"/>
+            </RegistryKey>
+            <RegistryKey Key="TypeLib">
+              <RegistryValue Type="string" Action="write" Value="{EEAEE929-A29C-48AC-A15E-92CE89881F80}"/>
+            </RegistryKey>
+            <RegistryKey Key="Version">
+              <RegistryValue Type="string" Action="write" Value="1.0"/> 
+            </RegistryKey>
+          </RegistryKey>
+          -->
+          
+        </Component>
+
+      </Directory>
+    </Directory>
+  </Directory>
+
+
+    
+  </Fragment>
+  
+</Wix>
