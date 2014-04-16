@@ -71,6 +71,13 @@ namespace InjectExcel
             SwapControls(logger, tbLog);
             logger.Font = tbLog.Font;
 
+            if( !InjectExcel.Properties.Settings.Default.font.Equals( "" ))
+            {
+                TypeConverter converter = TypeDescriptor.GetConverter(typeof(Font));
+                Font font = (Font)converter.ConvertFromString(InjectExcel.Properties.Settings.Default.font);
+                setFont(font, false);
+            }
+
             // initContext();
 
             Globals.ThisAddIn.Application.WorkbookBeforeSave += app_WorkbookBeforeSave;
@@ -645,6 +652,65 @@ namespace InjectExcel
         {
             logger.Text = "";
         }
+
+        private void button1_Click(object sender, EventArgs e)
+        {
+            fontDialog1.Font = editor.Font;
+            if (DialogResult.OK == fontDialog1.ShowDialog())
+                setFont(fontDialog1.Font);
+        }
+
+        void setFont( Font font, bool save = true )
+        {
+            // this seems sloppy
+
+            editor.Font = font ; // 
+
+            editor.Styles.Default.Font = font ; // 
+
+            editor.Styles[0].Font = font ; //                'white space
+            editor.Styles[1].Font = font ; //                'comments-block
+            editor.Styles[2].Font = font ; //                'comments-singlechar
+            editor.Styles[3].Font = font ; //                'half-formed comment
+            editor.Styles[4].Font = font ; //                'numbers
+            editor.Styles[5].Font = font ; //                'keyword after complete
+            editor.Styles[6].Font = font ; //                'quoted text-double
+            editor.Styles[7].Font = font ; //                'quoted text-single
+            editor.Styles[8].Font = font ; //                '"table" keyword l
+            editor.Styles[9].Font = font ; //                '? knows
+            editor.Styles[10].Font = font ; //               'symbol [<>];=-
+            editor.Styles[11].Font = font ; //               'half-formed words
+            editor.Styles[12].Font = font ; //               'mixed quoted text 'text"  ?strange
+            editor.Styles[14].Font = font ; //               'sql-type keyword [still looks weird]
+            editor.Styles[15].Font = font ; //               'sql @symbol in a comment 
+            editor.Styles[16].Font = font ; //               'sql function returning INT
+            editor.Styles[19].Font = font ; //               'in/out
+            editor.Styles[32].Font = font ; //               'plain ordinary whitespace, that exists everywhere
+
+            editor.Styles[StylesCommon.LineNumber].Font = font ; // 
+            editor.Styles[StylesCommon.BraceBad].Font = font; // 
+            editor.Styles[StylesCommon.BraceLight].Font = font; // 
+            editor.Styles[StylesCommon.CallTip].Font = font; // 
+            editor.Styles[StylesCommon.ControlChar].Font = font; // 
+            editor.Styles[StylesCommon.Default].Font = font; // 
+            editor.Styles[StylesCommon.IndentGuide].Font = font; // 
+            editor.Styles[StylesCommon.LastPredefined].Font = font; // 
+            editor.Styles[StylesCommon.Max].Font = font; // 
+            
+            // !
+
+            editor.Text = editor.Text;
+
+            // FIXME: adjust margins for font size
+
+            if( save )
+            {
+                TypeConverter converter = TypeDescriptor.GetConverter(typeof(Font));
+                InjectExcel.Properties.Settings.Default.font = converter.ConvertToString(font);
+            }
+
+        }
+
     }
 
     class InstanceData

@@ -3,7 +3,7 @@
 	<Language Name="js">
     
       <Styles>
-			<Style Name="Default" FontName="Consolas"/>
+			<Style Name="Default" FontName="Consolas" />
 		</Styles>
         
 		<AutoComplete FillUpCharacters=".([" SingleLineAccept="True" IsCaseSensitive="False">

@@ -181,7 +181,7 @@ namespace InjectExcel
 
             Microsoft.Office.Tools.CustomTaskPane ctp = (Microsoft.Office.Tools.CustomTaskPane)sender;
             scriptPane sp = (scriptPane)ctp.Control;
-            
+
             // 13... ?
 
             // Globals.Ribbons.Ribbon1.tbTaskPane.Checked = ctp.Visible;
@@ -190,15 +190,19 @@ namespace InjectExcel
             if (ctp.Visible && !sp.trackWidth)
             {
                 System.Windows.Forms.Timer t = new System.Windows.Forms.Timer();
-                t.Interval = 100;
+                t.Interval = 10;
                 t.Tick += new EventHandler((obj, ev) =>
                 {
                     t.Stop();
                     t.Enabled = false;
                     t.Dispose();
 
-                    ctp.Width = InjectExcel.Properties.Settings.Default.width;
-                    sp.trackWidth = true;
+                    sp.Invoke(new System.Action(() =>
+                    {
+                        ctp.Width = InjectExcel.Properties.Settings.Default.width;
+                        sp.trackWidth = true;
+                    }));
+
                 });
                 t.Start();
             }
