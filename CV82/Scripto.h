@@ -48,6 +48,8 @@ public:
 	std::hash_map < long, PWrap* > object_map;
 	v8::Isolate *instanceIsolate = 0;
 
+	std::hash_map < long, void* > sink_map;
+
 	CScripto()
 	{
 	}
@@ -76,6 +78,8 @@ END_CONNECTION_POINT_MAP()
 
 	void FinalRelease()
 	{
+		CleanUp(); // cleans up sinks (for now, consolidate)
+
 		ResetContext();
 
 		for (DITER iter = dispatch_list.begin(); iter != dispatch_list.end(); iter++)
@@ -121,11 +125,21 @@ public:
 	 */
 	STDMETHOD(SetGlobal)(BSTR* JSON);
 
+	/**
+	 * for cleaning up any persistent resources 
+	 */
+	STDMETHOD(CleanUp)();
+
 	v8::Isolate* getInstanceIsolate();
 
 	void Alert(const v8::FunctionCallbackInfo<v8::Value>& args);
 	void Confirm(const v8::FunctionCallbackInfo<v8::Value>& args);
 	void LogMessage(const v8::FunctionCallbackInfo<v8::Value>& args);
+	void LogInfo(const v8::FunctionCallbackInfo<v8::Value>& args);
+
+	HRESULT GetCoClassForDispatch(ITypeInfo **ppCoClass, IDispatch *disp);
+
+	void Unsink(IDispatch *pdisp);
 
 	PWrap* MapPersistentObj(v8::Isolate *isolate, IDispatch *pdisp);
 	void RemovePersistentObj(IDispatch *pdisp);

@@ -4,10 +4,10 @@
 
 
  /* File created by MIDL compiler version 8.00.0603 */
-/* at Wed Apr 16 15:17:43 2014
+/* at Thu Apr 17 10:46:26 2014
  */
 /* Compiler settings for CV82.idl:
-    Oicf, W1, Zp8, env=Win64 (32b run), target_arch=AMD64 8.00.0603 
+    Oicf, W1, Zp8, env=Win32 (32b run), target_arch=X86 8.00.0603 
     protocol : dce , ms_ext, c_ext, robust
     error checks: allocation ref bounds_check enum stub_data 
     VC __declspec() decoration level: 
@@ -134,6 +134,8 @@ EXTERN_C const IID IID_IScripto;
         virtual /* [id] */ HRESULT STDMETHODCALLTYPE SetGlobal( 
             /* [in] */ BSTR *JSON) = 0;
         
+        virtual /* [id] */ HRESULT STDMETHODCALLTYPE CleanUp( void) = 0;
+        
     };
     
     
@@ -217,6 +219,9 @@ EXTERN_C const IID IID_IScripto;
             IScripto * This,
             /* [in] */ BSTR *JSON);
         
+        /* [id] */ HRESULT ( STDMETHODCALLTYPE *CleanUp )( 
+            IScripto * This);
+        
         END_INTERFACE
     } IScriptoVtbl;
 
@@ -267,6 +272,9 @@ EXTERN_C const IID IID_IScripto;
 
 #define IScripto_SetGlobal(This,JSON)	\
     ( (This)->lpVtbl -> SetGlobal(This,JSON) ) 
+
+#define IScripto_CleanUp(This)	\
+    ( (This)->lpVtbl -> CleanUp(This) ) 
 
 #endif /* COBJMACROS */
 

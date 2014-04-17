@@ -8,7 +8,7 @@
 #include "xdlldata.h"
 
 
-using namespace ATL;
+using namespace ATL; 
 
 // Used to determine whether the DLL can be unloaded by OLE.
 STDAPI DllCanUnloadNow(void)
@@ -18,7 +18,7 @@ STDAPI DllCanUnloadNow(void)
 	if (hr != S_OK)
 		return hr;
 #endif
-			return _AtlModule.DllCanUnloadNow();
+			return _AtlModule.DllCanUnloadNow(); 
 	}
 
 // Returns a class factory to create an object of the requested type.

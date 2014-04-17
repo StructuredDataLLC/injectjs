@@ -105,7 +105,23 @@ namespace InjectExcel
 
             Load += taskPane_Load;
             SizeChanged += scriptPane_SizeChanged;
+
+            Disposed += scriptPane_Disposed;
         }
+
+        void scriptPane_Disposed(object sender, EventArgs e)
+        {
+            foreach(KeyValuePair<long, InstanceData> entry in slist)
+            {
+                if( entry.Value.scripto != null )
+                {
+                    entry.Value.scripto.CleanUp();
+                    entry.Value.scripto = null;
+                }
+            }
+
+        }
+
 
         void Application_WorkbookActivate(Excel.Workbook Wb)
         {
@@ -416,6 +432,7 @@ namespace InjectExcel
 
             slist[ID].scripto.SetDispatch(Globals.ThisAddIn.Application, "Application", true);
 
+
             slist[ID].scripto.OnConsolePrint += scripto_OnConsolePrint;
             slist[ID].scripto.OnAlert += scripto_OnAlert;
             slist[ID].scripto.OnConfirm += scripto_OnConfirm;
@@ -676,12 +693,14 @@ namespace InjectExcel
             logger.Text = "";
         }
 
+        /*
         private void button1_Click(object sender, EventArgs e)
         {
             fontDialog1.Font = editor.Font;
             if (DialogResult.OK == fontDialog1.ShowDialog())
                 setFont(fontDialog1.Font);
         }
+        */
 
         void setFont( Font font, bool save = true )
         {

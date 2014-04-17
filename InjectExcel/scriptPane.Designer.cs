@@ -35,7 +35,6 @@
             this.tbEditor = new System.Windows.Forms.TextBox();
             this.tbLog = new System.Windows.Forms.TextBox();
             this.fontDialog1 = new System.Windows.Forms.FontDialog();
-            this.button1 = new System.Windows.Forms.Button();
             ((System.ComponentModel.ISupportInitialize)(this.splitContainer1)).BeginInit();
             this.splitContainer1.Panel1.SuspendLayout();
             this.splitContainer1.Panel2.SuspendLayout();
@@ -51,7 +50,6 @@
             // 
             // splitContainer1.Panel1
             // 
-            this.splitContainer1.Panel1.Controls.Add(this.button1);
             this.splitContainer1.Panel1.Controls.Add(this.cbScriptLanguage);
             this.splitContainer1.Panel1.Controls.Add(this.bClearLog);
             this.splitContainer1.Panel1.Controls.Add(this.bExecute);
@@ -100,10 +98,10 @@
             | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
             this.tbEditor.Font = new System.Drawing.Font("Consolas", 9.75F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.tbEditor.Location = new System.Drawing.Point(3, 35);
+            this.tbEditor.Location = new System.Drawing.Point(3, 3);
             this.tbEditor.Multiline = true;
             this.tbEditor.Name = "tbEditor";
-            this.tbEditor.Size = new System.Drawing.Size(300, 399);
+            this.tbEditor.Size = new System.Drawing.Size(300, 431);
             this.tbEditor.TabIndex = 0;
             // 
             // tbLog
@@ -117,16 +115,6 @@
             this.tbLog.Name = "tbLog";
             this.tbLog.Size = new System.Drawing.Size(300, 117);
             this.tbLog.TabIndex = 1;
-            // 
-            // button1
-            // 
-            this.button1.Location = new System.Drawing.Point(3, 6);
-            this.button1.Name = "button1";
-            this.button1.Size = new System.Drawing.Size(75, 23);
-            this.button1.TabIndex = 4;
-            this.button1.Text = "button1";
-            this.button1.UseVisualStyleBackColor = true;
-            this.button1.Click += new System.EventHandler(this.button1_Click);
             // 
             // scriptPane
             // 
@@ -156,6 +144,5 @@
         private System.Windows.Forms.TextBox tbLog;
         private System.Windows.Forms.ComboBox cbScriptLanguage;
         private System.Windows.Forms.FontDialog fontDialog1;
-        private System.Windows.Forms.Button button1;
     }
 }

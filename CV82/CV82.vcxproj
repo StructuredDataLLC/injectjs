@@ -68,6 +68,7 @@
     <LinkIncremental>true</LinkIncremental>
     <OutDir>..\Build\bin\x86\$(Configuration)\</OutDir>
     <IncludePath>e:\office-dev\v8\include;$(IncludePath)</IncludePath>
+    <LibraryPath>v8-32-lib;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <IncludePath>e:\office-dev\v8\include;$(IncludePath)</IncludePath>
@@ -122,6 +123,7 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <RegisterOutput>true</RegisterOutput>
       <PerUserRedirection>true</PerUserRedirection>
+      <AdditionalDependencies>icui18n.lib;icuuc.lib;v8.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <CustomBuildStep>
       <Command>tlbimp $(OutDir)$(TargetName)$(TargetExt) /out:$(OutDir)$(TargetName)Lib$(TargetExt)</Command>
@@ -129,6 +131,9 @@
     <PostBuildEvent>
       <Command>tlbimp $(OutDir)$(TargetName)$(TargetExt) /out:$(OutDir)$(TargetName)Lib$(TargetExt)</Command>
     </PostBuildEvent>
+    <PreLinkEvent>
+      <Command>copy v8-32\* $(OutDir)</Command>
+    </PreLinkEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
@@ -210,6 +215,9 @@
     <PostBuildEvent>
       <Command>tlbimp $(OutDir)$(TargetName)$(TargetExt) /out:$(OutDir)$(TargetName)Lib$(TargetExt) &amp;&amp; regsvr32 /n /s /i:user $(OutDir)$(TargetName)$(TargetExt)</Command>
     </PostBuildEvent>
+    <PreLinkEvent>
+      <Command>copy v8-32\* $(OutDir)</Command>
+    </PreLinkEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>

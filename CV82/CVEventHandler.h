@@ -31,7 +31,7 @@ class ATL_NO_VTABLE CCVEventHandler :
 	public IDispatchImpl<ICVEventHandler, &IID_ICVEventHandler, &LIBID_CV82Lib, /*wMajor =*/ 1, /*wMinor =*/ 0>
 {
 public:
-	CCVEventHandler()
+	CCVEventHandler() : cookie(0)
 	{
 	}
 
@@ -54,12 +54,15 @@ END_COM_MAP()
 
 	void FinalRelease()
 	{
+		ATLTRACE("EventHandler FinalRelease: cookie? %d\r\n", cookie);
 	}
 
 public:
 
 	std::hash_map < long, CopyablePersistent > func_map;
+	DWORD cookie;
 	CScripto *ptr;
+	IID iid;
 
 	/**
 	 * store a pointer to a function by dispid.  a single instance can be used
@@ -78,6 +81,26 @@ public:
 		{
 			iter->second.Reset(isolate, value); // neat
 		}
+	}
+
+	void Clear(v8::Isolate* isolate, long ID)
+	{
+		std::hash_map < long, CopyablePersistent >::iterator iter = func_map.find(ID);
+		if (iter != func_map.end())
+		{
+			iter->second.Reset(); // neat
+			func_map.erase(iter);
+		}
+
+	}
+
+	void Reset()
+	{
+		for (std::hash_map < long, CopyablePersistent >::iterator iter = func_map.begin(); iter != func_map.end(); iter++)
+		{
+			iter->second.Reset();
+		}
+		func_map.clear();
 	}
 
 	/**

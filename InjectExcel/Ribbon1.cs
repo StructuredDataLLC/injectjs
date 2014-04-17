@@ -10,7 +10,7 @@ namespace InjectExcel
     {
         private void Ribbon1_Load(object sender, RibbonUIEventArgs e)
         {
-
+            // e.RibbonUI
         }
 
         private void tbTaskPane_Click(object sender, RibbonControlEventArgs e)

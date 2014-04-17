@@ -21,6 +21,8 @@ interface IScripto : IDispatch{
 	[id(13)] HRESULT GetGlobal([out, retval] BSTR* JSON);
 	[id(14)] HRESULT SetGlobal([in] BSTR* JSON);
 
+	[id(20)] HRESULT CleanUp();
+
 };
 [
 	object,

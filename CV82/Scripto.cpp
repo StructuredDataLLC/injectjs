@@ -104,6 +104,315 @@ void FormatCOMError(std::string &target, HRESULT hr, const char *msg, const char
 }
 
 //-----------------------------------------------------------
+//
+//-----------------------------------------------------------
+
+
+const char * vt_type(int vt)
+{
+	vt &= (~VT_BYREF);
+	switch (vt){
+	case 1:
+		return "VT_NULL";
+	case 2:
+	case 3:
+		return "int";
+	case 4:
+	case 5:
+		return "double";
+	case 6:
+		return 		"VT_CY";// 6,
+	case 7:
+		return 		"VT_DATE";// 7,
+	case 8:
+		return 		"string";
+	case 9:
+		return 		"IDispatch";// 9,
+	case 10:
+		return 		"VT_ERROR";// 10,
+	case 11:
+		return 		"boolean";// 11,
+	case 12:
+		return 		"variant";// 12,
+	case 13:
+		return 		"IUnknown";// 13,
+	case 14:
+		return 		"VT_DECIMAL";// 14,
+	case 16:
+		return 		"VT_I1";// 16,
+	case 17:
+		return 		"VT_UI1";// 17,
+	case 18:
+		return 		"VT_UI2";// 18,
+	case 19:
+		return 		"uint";// 19,
+	case 20:
+		return 		"int";// 20,
+	case 21:
+		return 		"uint";// 21,
+	case 22:
+		return 		"int";// 22,
+	case 23:
+		return 		"uint";// 23,
+	case 24:
+		return 		"void";// 24,
+	case 25:
+		return 		"VT_HRESULT";// 25,
+	case 26:
+		return 		"VT_PTR";// 26,
+	case 27:
+		return 		"VT_SAFEARRAY";// 27,
+	}
+	return "OTHER";
+}
+
+void map_returntype(std::string &rtype, TYPEDESC *ptdesc, CComPtr<ITypeInfo> typeinfo)
+{
+	//HRESULT hr;
+
+	CComPtr< ITypeInfo > spTypeInfo2;
+	CComBSTR bstrName;
+
+	if (ptdesc->vt == VT_PTR)
+	{
+		while ((ptdesc->vt == VT_PTR) && (ptdesc->lptdesc != 0)){
+			ptdesc = ptdesc->lptdesc;
+		}
+	}
+
+	if (ptdesc->hreftype != 0)
+	{
+		CComPtr<ITypeInfo> spTypeInfo2;
+		if (ptdesc->vt == VT_USERDEFINED &&
+			(SUCCEEDED(typeinfo->GetRefTypeInfo(ptdesc->hreftype, &spTypeInfo2))))
+		{
+			if (SUCCEEDED(spTypeInfo2->GetDocumentation(-1, &bstrName, 0, 0, 0)))
+			{
+				std::string refname;
+				rtype.clear();
+				NarrowString(&bstrName, rtype);
+			}
+			else
+			{
+				rtype = "(not found [1])";
+			}
+		}
+		else
+		{
+			rtype = "(not found [2])"; // probably need to read the import list
+		}
+	}
+	else if (ptdesc->vt)
+	{
+		rtype = vt_type(ptdesc->vt);
+	}
+	else
+	{
+		rtype = "(not found [3])"; // case?
+	}
+
+}
+
+
+void mapCoClass(std::string &output, std::string &name, CComPtr<ITypeInfo> typeinfo, TYPEATTR *pTatt)
+{
+	std::stringstream ss;
+
+	CComBSTR bstrName;
+	std::string elementname;
+	INT lImplTypeFlags;
+	HREFTYPE handle;
+	CComPtr< ITypeInfo > spTypeInfo2;
+
+	ss << "\"" << name.c_str() << "\": { \n";
+	ss << "\t\"type\": \"coclass\", \n";
+
+	// FIXME: could cache source GUIDs here, would save lookup later
+
+	for (UINT j = 0; j < pTatt->cImplTypes; j++)
+	{
+		HRESULT hr = typeinfo->GetImplTypeFlags(j, &lImplTypeFlags);
+		if (SUCCEEDED(hr)) hr = typeinfo->GetRefTypeOfImplType(j, &handle);
+		if (SUCCEEDED(hr)) hr = typeinfo->GetRefTypeInfo(handle, &spTypeInfo2);
+		if (SUCCEEDED(hr))
+		{
+			if (SUCCEEDED(spTypeInfo2->GetDocumentation(-1, &bstrName, 0, 0, 0)))
+			{
+				elementname.clear();
+				NarrowString(&bstrName, elementname);
+				if (lImplTypeFlags == 1) ss << "\t\"default\": \"" << elementname << "\"";
+				else ss << "\t\"source\": \"" << elementname << "\"";
+				if (j < pTatt->cImplTypes - 1) ss << ",";
+				ss << "\n";
+			}
+			spTypeInfo2 = 0;
+		}
+	}
+
+	ss << "}";
+	output = ss.str();
+
+}
+
+void mapEnum(std::string &output, std::string &name, CComPtr<ITypeInfo> typeinfo, TYPEATTR *pTatt, v8::Handle< v8::Context > context)
+{
+	std::stringstream ss;
+
+	VARDESC *vd = 0;
+	CComBSTR bstrName;
+	std::string elementname;
+
+	v8::Isolate * isolate = context->GetIsolate();
+	v8::Local<v8::ObjectTemplate> tmpl = v8::ObjectTemplate::New(isolate);
+
+
+	ss << "\"" << name.c_str() << "\": { \n";
+	ss << "\t\"type\": \"enum\", \n";
+	ss << "\t\"values\": { \n";
+
+	for (UINT u = 0; u < pTatt->cVars; u++)
+	{
+		vd = 0;
+		HRESULT hr = typeinfo->GetVarDesc(u, &vd);
+		if (SUCCEEDED(hr))
+		{
+			if (vd->varkind != VAR_CONST
+				|| vd->lpvarValue->vt != VT_I4)
+			{
+				ATLTRACE("enum type not const/I4\n");
+			}
+
+			elementname.clear();
+
+			hr = typeinfo->GetDocumentation(vd->memid, &bstrName, 0, 0, 0);
+			if (SUCCEEDED(hr))
+			{
+				NarrowString(&bstrName, elementname);
+				ss << "\t\t\"" << elementname << "\": ";
+				ss << vd->lpvarValue->intVal;
+				if (u < pTatt->cVars - 1) ss << ",";
+				ss << "\n";
+
+				tmpl->Set(v8::String::NewFromUtf8(isolate, elementname.c_str()), v8::Integer::New(isolate, vd->lpvarValue->intVal));
+
+			}
+			typeinfo->ReleaseVarDesc(vd);
+		}
+	}
+
+	ss << "\t}\n}";
+	output = ss.str();
+
+	v8::Local<v8::Object> inst = tmpl->NewInstance();
+	context->Global()->Set(v8::String::NewFromUtf8(isolate, name.c_str()), inst);
+
+
+}
+
+void mapInterface(std::string &output, std::string &name, CComPtr<ITypeInfo> typeinfo, CComPtr<ITypeLib> typelib, TYPEATTR *pTatt, TYPEKIND tk)
+{
+	std::stringstream ss;
+	std::string elementname;
+	CComBSTR bstrName;
+
+	FUNCDESC *fd;
+
+	std::hash_map< std::string, MemberRep* > ifacemap;
+
+	ss << "\"" << name.c_str() << "\": { \n";
+	ss << "\t\"type\": \"" << (tk == TKIND_DISPATCH ? "dispatch" : "interface") << "\", \n";
+	ss << "\t\"members\": {\n";
+
+	for (UINT u = 0; u < pTatt->cFuncs; u++)
+	{
+		fd = 0;
+		HRESULT hr = typeinfo->GetFuncDesc(u, &fd);
+		if (SUCCEEDED(hr))
+		{
+			elementname.clear();
+
+			hr = typeinfo->GetDocumentation(fd->memid, &bstrName, 0, 0, 0);
+			if (SUCCEEDED(hr))
+			{
+				NarrowString(&bstrName, elementname);
+
+				std::string rtype = "(unknown type)";
+
+				if (fd->funckind == FUNC_DISPATCH) // && ( fd->invkind == INVOKE_PROPERTYGET || fd->invkind == INVOKE_FUNC ))
+				{
+					map_returntype(rtype, &(fd->elemdescFunc.tdesc), typeinfo);
+				}
+				else if (fd->lprgelemdescParam && (fd->lprgelemdescParam->paramdesc.wParamFlags & 0xa))
+				{
+					map_returntype(rtype, &(fd->lprgelemdescParam->tdesc), typeinfo);
+				}
+				else if ((fd->invkind == INVOKE_FUNC) && fd->lprgelemdescParam)
+				{
+					map_returntype(rtype, &(fd->lprgelemdescParam->tdesc), typeinfo);
+				}
+				else if (fd->invkind == INVOKE_FUNC) // && fd->lprgelemdescParam)
+				{
+					rtype = "void";
+				}
+
+				std::hash_map< std::string, MemberRep* >::iterator iter = ifacemap.find(elementname.c_str());
+				if (iter != ifacemap.end())
+				{
+					MemberRep *mr = iter->second;
+
+					// if this is get, set type
+					if (fd->invkind == INVOKE_PROPERTYGET)
+					{
+						mr->type = rtype.c_str();
+						mr->mrflags |= MRFLAG_PROPGET;
+					}
+					else if (fd->invkind == INVOKE_PROPERTYPUT || fd->invkind == INVOKE_PROPERTYPUTREF)
+					{
+						mr->mrflags |= MRFLAG_PROPPUT;
+					}
+					else
+					{
+						// this should not happen
+						ATLTRACE("unexpected case mrflags\n");
+					}
+
+					ifacemap.erase(iter);
+					ifacemap.insert(std::pair< std::string, MemberRep* >(elementname, mr));
+				}
+				else
+				{
+					MemberRep *mr = new MemberRep();
+					mr->name = elementname.c_str();
+					mr->type = rtype.c_str();
+					if (fd->invkind == INVOKE_FUNC) mr->mrflags = MRFLAG_METHOD;
+					else if (fd->invkind == INVOKE_PROPERTYGET) mr->mrflags = MRFLAG_PROPGET;
+					else mr->mrflags = MRFLAG_PROPPUT;
+					ifacemap.insert(std::pair< std::string, MemberRep* >(elementname, mr));
+				}
+			}
+			typeinfo->ReleaseFuncDesc(fd);
+		}
+	}
+
+	{
+		std::hash_map< std::string, MemberRep* >::iterator iter = ifacemap.begin();
+		for (int i = 0; i< ifacemap.size(); i++)
+		{
+			MemberRep *mr = (iter++)->second;
+			ss << "\t\t\"" << mr->name << "\": { type:\"" << mr->type << "\", flags: " << mr->mrflags << " }";
+			if (i < ifacemap.size() - 1) ss << ",";
+			ss << "\n";
+			delete mr;
+		}
+	}
+
+	ss << "\t}\n}";
+
+	output = ss.str();
+}
+
+
+//-----------------------------------------------------------
 // callback functions
 //-----------------------------------------------------------
 
@@ -395,6 +704,94 @@ HRESULT CScripto::EventCallback(const v8::Persistent<v8::Function, v8::CopyableP
 	return S_OK;
 }
 
+HRESULT CScripto::GetCoClassForDispatch(ITypeInfo **ppCoClass, IDispatch *pdisp)
+{
+	CComPtr<ITypeInfo> spTypeInfo;
+	CComPtr<ITypeLib> spTypeLib;
+
+	bool matchIface = false;
+	HRESULT hr = pdisp->GetTypeInfo(0, 0, &spTypeInfo);
+
+	if (SUCCEEDED(hr) && spTypeInfo)
+	{
+		UINT tlidx;
+		hr = spTypeInfo->GetContainingTypeLib(&spTypeLib, &tlidx);
+	}
+
+	if (SUCCEEDED(hr))
+	{
+		UINT tlcount = spTypeLib->GetTypeInfoCount();
+
+		for (UINT u = 0; !matchIface && u < tlcount; u++)
+		{
+			TYPEATTR *pTatt = nullptr;
+			CComPtr<ITypeInfo> spTypeInfo2;
+			TYPEKIND ptk;
+
+			if (SUCCEEDED(spTypeLib->GetTypeInfoType(u, &ptk)) && ptk == TKIND_COCLASS)
+			{
+				hr = spTypeLib->GetTypeInfo(u, &spTypeInfo2);
+				if (SUCCEEDED(hr))
+				{
+					hr = spTypeInfo2->GetTypeAttr(&pTatt);
+				}
+				if (SUCCEEDED(hr))
+				{
+					for (UINT j = 0; !matchIface && j < pTatt->cImplTypes; j++)
+					{
+						INT lImplTypeFlags;
+						hr = spTypeInfo2->GetImplTypeFlags(j, &lImplTypeFlags);
+						if (SUCCEEDED(hr) && lImplTypeFlags == 1) // default interface, disp or dual
+						{
+							HREFTYPE handle;
+							if (SUCCEEDED(spTypeInfo2->GetRefTypeOfImplType(j, &handle)))
+							{
+								CComPtr< ITypeInfo > spTypeInfo3;
+								if (SUCCEEDED(spTypeInfo2->GetRefTypeInfo(handle, &spTypeInfo3)))
+								{
+									CComBSTR bstr;
+									TYPEATTR *pTatt2 = nullptr;
+									CComPtr<IUnknown> punk = 0;
+
+									hr = spTypeInfo3->GetTypeAttr(&pTatt2);
+									if (SUCCEEDED(hr)) hr = pdisp->QueryInterface(pTatt2->guid, (void**)&punk);
+									if (SUCCEEDED(hr))
+									{
+										*ppCoClass = spTypeInfo2;
+										// ... (*ppCoClass)->AddRef();
+										matchIface = true;
+									}
+
+									if (pTatt2) spTypeInfo3->ReleaseTypeAttr(pTatt2);
+								}
+							}
+						}
+					}
+				}
+				if (pTatt) spTypeInfo2->ReleaseTypeAttr(pTatt);
+			}
+		}
+	}
+
+	return matchIface ? S_OK : E_FAIL;
+}
+
+void CScripto::Unsink(IDispatch *pdisp)
+{
+	long ID = (long)pdisp;
+	std::hash_map < long, void* > ::iterator iter = sink_map.find(ID);
+	CComObject<CCVEventHandler>* pSink = (CComObject<CCVEventHandler>*)(iter->second);
+	if (pSink)
+	{
+		pSink->Reset();
+		CComPtr<IUnknown> punk = 0;
+		pSink->QueryInterface(IID_IUnknown, (void**)&punk);
+		AtlUnadvise(punk, pSink->iid, pSink->cookie);
+		pSink->Release();
+	}
+	sink_map.erase(iter);
+}
+
 void CScripto::Setter(v8::Local<v8::String> property, v8::Local<v8::Value> value, const v8::PropertyCallbackInfo<v8::Value>& info)
 {
 	v8::Isolate* isolate = getInstanceIsolate();
@@ -426,10 +823,10 @@ void CScripto::Setter(v8::Local<v8::String> property, v8::Local<v8::Value> value
 		// source interface.  we should map these ahead of 
 		// time or at least cache mappings.
 
-		if (!value->IsFunction())
-		{
-			return;
-		}
+		/* if it's not a function, treat it as nullity - essentially clearing any existing mappings */
+
+		/* if (!value->IsFunction()) return; */
+
 		CComPtr<ITypeInfo> spTypeInfo;
 		hr = pdisp->GetTypeInfo(0, 0, &spTypeInfo);
 
@@ -518,15 +915,33 @@ void CScripto::Setter(v8::Local<v8::String> property, v8::Local<v8::Value> value
 														{
 															CComBSTR bstr;
 															TYPEATTR *pTatt2 = nullptr;
-															CComObject<CCVEventHandler>* pSink;
+															CComObject<CCVEventHandler>* pSink = 0;
 															MEMBERID memID2;
 															hr = spTypeInfo3->GetIDsOfNames(&member, 1, &memID2);
 
-															// we might have already sunk it
-															v8::Handle<v8::External> check = v8::Handle<v8::External>::Cast(info.Holder()->GetInternalField(2));
-															pSink = ((CComObject<CCVEventHandler>*)(check->Value()));
+															ATLTRACE("OBJECT DISP: 0x%x\r\n", pdisp);
 
-															if (!pSink)
+															// we might have already sunk it
+
+															// NOTE: this method is no good.  the dispatch is getting re-wrapped on
+															// subsequent calls (in most cases).  so there's no use in stuffing the 
+															// sink object into this local v8 object.
+
+															// we need a global map.  NOTE: the *objects* don't have to be persistent,
+															// to support COM calls, although we will have to release the sinks at 
+															// some point.  What about the *functions*?
+
+															// NOTE: functions are persisted in the event handler obj, (@see)
+
+															//v8::Handle<v8::External> check = v8::Handle<v8::External>::Cast(info.Holder()->GetInternalField(2));
+															//pSink = ((CComObject<CCVEventHandler>*)(check->Value()));
+
+															// FIXME: need to clean up this map at some point
+
+															std::hash_map < long, void* > ::iterator iter = sink_map.find((long)pdisp.p);
+															if (iter != sink_map.end()) pSink = (CComObject<CCVEventHandler>*)(iter->second);
+
+															if (!pSink && value->IsFunction()) // ok sink
 															{
 
 																if (SUCCEEDED(hr)) hr = spTypeInfo3->GetDocumentation(-1, &bstr, 0, 0, 0);
@@ -541,20 +956,30 @@ void CScripto::Setter(v8::Local<v8::String> property, v8::Local<v8::Value> value
 																	pSink->AddRef();
 																	pSink->QueryInterface(IID_IUnknown, (void**)&punk);
 																	pSink->SetPtr(this);
+																	pSink->iid = pTatt2->guid;
 
-																	DWORD dwCookie;
-																	hr = AtlAdvise(pdisp, punk, pTatt2->guid, &dwCookie);
+																	hr = AtlAdvise(pdisp, punk, pTatt2->guid, &(pSink->cookie));
 
-																	info.Holder()->SetInternalField(2, v8::External::New(isolate, pSink));
-																	info.Holder()->SetInternalField(3, v8::Int32::New(isolate, dwCookie));
+																	//info.Holder()->SetInternalField(2, v8::External::New(isolate, pSink));
+																	//info.Holder()->SetInternalField(3, v8::Int32::New(isolate, dwCookie));
 
+																	// FIXME: unadvise also
+
+																	sink_map.insert(std::pair< long, void* >((long)pdisp.p, (void*)pSink));
 
 																}
 															}
 
-															// now store the callback function in there
-
-															pSink->Store(isolate, memID2, value.As<v8::Function>());
+															if (pSink && value->IsFunction())
+															{
+																// store the callback function in there
+																pSink->Store(isolate, memID2, value.As<v8::Function>());
+															}
+															else if (pSink)
+															{
+																pSink->Clear(isolate, memID2);
+																if (pSink->func_map.size() == 0) Unsink(pdisp);
+															}
 
 															spTypeInfo3->ReleaseTypeAttr(pTatt2);
 
@@ -780,6 +1205,142 @@ void logmessage(const v8::FunctionCallbackInfo<v8::Value>& args)
 
 }
 
+void loginfo(const v8::FunctionCallbackInfo<v8::Value>& args)
+{
+	v8::Isolate* isolate = args.GetIsolate();
+	v8::HandleScope handle_scope(isolate);
+	v8::Handle<v8::External> external = v8::Handle<v8::External>::Cast(args.Holder()->GetInternalField(0));
+	CScripto *p = (CScripto*)(external->Value());
+	p->LogInfo(args);
+
+}
+
+void CScripto::LogInfo(const v8::FunctionCallbackInfo<v8::Value>& args)
+{
+	CComBSTR bstr = "Invalid value";
+	v8::Isolate* isolate = args.GetIsolate();
+
+	if (args.Length() > 0)
+	{
+		if (!args[0]->IsObject())
+		{
+			LogMessage(args);
+			return;
+		}
+		v8::Local< v8::Object > arg = v8::Handle<v8::Object>::Cast(args[0]);
+
+		if (arg->InternalFieldCount() > 1)
+		{
+			v8::Handle<v8::External> external = v8::Handle<v8::External>::Cast(arg->GetInternalField(1));
+			IDispatch *pdisp = (IDispatch*)(external->Value());
+			if (pdisp)
+			{
+				// if (FAILED(MapTypeLib(pdisp, &bstr))) bstr = "COM error";
+
+				UINT ui;
+				CComPtr< ITypeInfo > typeinfo;
+				CComPtr< ITypeLib > typelib;
+				CComBSTR bstrName;
+				MEMBERID memid;
+				TYPEKIND tk;
+				TYPEATTR *pTatt = nullptr;
+				std::stringstream ss;
+
+				HRESULT hr = pdisp->GetTypeInfoCount(&ui);
+				if (SUCCEEDED(hr) && ui > 0)
+				{
+					hr = pdisp->GetTypeInfo(0, 1033, &typeinfo);
+				}
+				if (SUCCEEDED(hr))
+				{
+					hr = typeinfo->GetDocumentation(-1, &bstrName, 0, 0, 0);
+				}
+				if (SUCCEEDED(hr))
+				{
+					bstr = "object ";
+					bstr.Append(bstrName);
+					bstr.Append("\r\n");
+				}
+				if (SUCCEEDED(hr))
+				{
+					hr = typeinfo->GetContainingTypeLib(&typelib, &ui);
+				}
+				if (SUCCEEDED(hr)) hr = typeinfo->GetTypeAttr(&pTatt);
+
+				CComPtr<ITypeInfo> ticc;
+				GetCoClassForDispatch(&ticc, pdisp);
+				if (ticc)
+				{
+					std::string strname;
+					NarrowString(&bstrName, strname);
+					std::string scc;
+					TYPEATTR *pta = 0;
+					ticc->GetTypeAttr(&pta);
+					mapCoClass(scc, strname, ticc, pta);
+					bstr += scc.c_str();
+
+					////
+					HREFTYPE handle;
+					CComPtr< ITypeInfo > spTypeInfo2;
+					for (UINT j = 0; j < pta->cImplTypes; j++)
+					{
+						TYPEATTR *pta2 = 0;
+
+						hr = ticc->GetRefTypeOfImplType(j, &handle);
+						if (SUCCEEDED(hr)) hr = ticc->GetRefTypeInfo(handle, &spTypeInfo2);
+						if (SUCCEEDED(hr)) hr = spTypeInfo2->GetTypeAttr(&pta2);
+						if (SUCCEEDED(hr))
+						{
+							CComBSTR bstrName2;
+							if (SUCCEEDED(spTypeInfo2->GetDocumentation(-1, &bstrName2, 0, 0, 0)))
+							{
+								strname.clear();
+								NarrowString(&bstrName2, strname);
+								scc.clear();
+								mapInterface(scc, strname, spTypeInfo2, typelib, pta2, pta2->typekind);
+								bstr += scc.c_str();
+								bstr += "\r\n";
+							}
+							spTypeInfo2 = 0;
+						}
+						if (pta2 && spTypeInfo2 ) spTypeInfo2->ReleaseTypeAttr(pta2);
+					}
+
+					ticc->ReleaseTypeAttr(pta);
+
+				}
+				else
+				{
+					std::string stri;
+					std::string strname;
+					NarrowString(&bstrName, strname);
+					mapInterface(stri, strname, typeinfo, typelib, pTatt, pTatt->typekind);
+					bstr += stri.c_str();
+				}
+
+				if (pTatt) typeinfo->ReleaseTypeAttr(pTatt);
+
+				if (FAILED(hr)) bstr = "COM error";
+				
+			}
+			else
+			{
+				bstr = "Not a dispatch interface";
+			}
+			Fire_OnConsolePrint(&bstr, 1);
+		}
+		else
+		{
+			if (!args[0]->IsObject())
+			{
+				LogMessage(args);
+				return;
+			}
+		}
+	}
+	else Fire_OnConsolePrint(&bstr, 1);
+}
+
 void CScripto::LogMessage(const v8::FunctionCallbackInfo<v8::Value>& args) 
 {
 	// this is console.log
@@ -897,6 +1458,7 @@ void CScripto::InitContext()
 	v8::Local<v8::ObjectTemplate> tmpl = v8::ObjectTemplate::New(isolate);
 	tmpl->SetInternalFieldCount(1);
 	tmpl->Set(v8::String::NewFromUtf8(isolate, "log"), v8::FunctionTemplate::New(isolate, logmessage));
+	tmpl->Set(v8::String::NewFromUtf8(isolate, "info"), v8::FunctionTemplate::New(isolate, loginfo));
 
 	v8::Local<v8::Object> console = tmpl->NewInstance();
 	console->SetInternalField(0, v8::External::New(isolate, this));
@@ -938,313 +1500,29 @@ v8::Local< v8::Object > CScripto::WrapDispatch(v8::Isolate *isolate, IDispatch *
 	return instance;
 }
 
-const char * vt_type(int vt)
-{
-	vt &= (~VT_BYREF);
-	switch (vt){
-	case 1:
-		return "VT_NULL";
-	case 2:
-	case 3:
-		return "int";
-	case 4:
-	case 5:
-		return "double";
-	case 6:
-		return 		"VT_CY";// 6,
-	case 7:
-		return 		"VT_DATE";// 7,
-	case 8:
-		return 		"string";
-	case 9:
-		return 		"IDispatch";// 9,
-	case 10:
-		return 		"VT_ERROR";// 10,
-	case 11:
-		return 		"boolean";// 11,
-	case 12:
-		return 		"variant";// 12,
-	case 13:
-		return 		"IUnknown";// 13,
-	case 14:
-		return 		"VT_DECIMAL";// 14,
-	case 16:
-		return 		"VT_I1";// 16,
-	case 17:
-		return 		"VT_UI1";// 17,
-	case 18:
-		return 		"VT_UI2";// 18,
-	case 19:
-		return 		"uint";// 19,
-	case 20:
-		return 		"int";// 20,
-	case 21:
-		return 		"uint";// 21,
-	case 22:
-		return 		"int";// 22,
-	case 23:
-		return 		"uint";// 23,
-	case 24:
-		return 		"void";// 24,
-	case 25:
-		return 		"VT_HRESULT";// 25,
-	case 26:
-		return 		"VT_PTR";// 26,
-	case 27:
-		return 		"VT_SAFEARRAY";// 27,
-	}
-	return "OTHER";
-}
-
-void map_returntype( std::string &rtype, TYPEDESC *ptdesc, CComPtr<ITypeInfo> typeinfo )
-{
-	//HRESULT hr;
-
-	CComPtr< ITypeInfo > spTypeInfo2;
-	CComBSTR bstrName;
-
-	if (ptdesc->vt == VT_PTR)
-	{
-		while ((ptdesc->vt == VT_PTR) && (ptdesc->lptdesc != 0)){
-			ptdesc = ptdesc->lptdesc;
-		}
-	}
-
-	if (ptdesc->hreftype != 0)
-	{
-		CComPtr<ITypeInfo> spTypeInfo2;
-		if (ptdesc->vt == VT_USERDEFINED && 
-			(SUCCEEDED(typeinfo->GetRefTypeInfo(ptdesc->hreftype, &spTypeInfo2))))
-		{
-			if (SUCCEEDED(spTypeInfo2->GetDocumentation(-1, &bstrName, 0, 0, 0)))
-			{
-				std::string refname;
-				rtype.clear();
-				NarrowString(&bstrName, rtype);
-			}
-			else
-			{
-				rtype = "(not found [1])";
-			}
-		}
-		else
-		{
-			rtype = "(not found [2])"; // probably need to read the import list
-		}
-	}
-	else if (ptdesc->vt)
-	{
-		rtype = vt_type(ptdesc->vt);
-	}
-	else
-	{
-		rtype = "(not found [3])"; // case?
-	}
-
-}
-
-
-
-void mapInterface(std::string &output, std::string &name, CComPtr<ITypeInfo> typeinfo, CComPtr<ITypeLib> typelib, TYPEATTR *pTatt, TYPEKIND tk)
-{
-	std::stringstream ss;
-	std::string elementname;
-	CComBSTR bstrName;
-
-	FUNCDESC *fd;
-
-	std::hash_map< std::string, MemberRep* > ifacemap;
-
-	ss << "\"" << name.c_str() << "\": { \n";
-	ss << "\t\"type\": \"" << ( tk == TKIND_DISPATCH ? "dispatch" : "interface" ) << "\", \n";
-	ss << "\t\"members\": {\n";
-
-	for (UINT u = 0; u < pTatt->cFuncs; u++)
-	{
-		fd = 0;
-		HRESULT hr = typeinfo->GetFuncDesc(u, &fd);
-		if (SUCCEEDED(hr))
-		{
-			elementname.clear();
-
-			hr = typeinfo->GetDocumentation(fd->memid, &bstrName, 0, 0, 0);
-			if (SUCCEEDED(hr))
-			{
-				NarrowString(&bstrName, elementname);
-
-				std::string rtype = "(unknown type)";
-
-				if ( fd->funckind == FUNC_DISPATCH ) // && ( fd->invkind == INVOKE_PROPERTYGET || fd->invkind == INVOKE_FUNC ))
-				{
-					map_returntype(rtype, &(fd->elemdescFunc.tdesc), typeinfo );
-				}
-				else if (fd->lprgelemdescParam && ( fd->lprgelemdescParam->paramdesc.wParamFlags & 0xa ))
-				{
-					map_returntype(rtype, &(fd->lprgelemdescParam->tdesc), typeinfo);
-				}
-				else if ((fd->invkind == INVOKE_FUNC) && fd->lprgelemdescParam)
-				{
-					map_returntype(rtype, &(fd->lprgelemdescParam->tdesc), typeinfo);
-				}
-				else if (fd->invkind == INVOKE_FUNC) // && fd->lprgelemdescParam)
-				{
-					rtype = "void";
-				}
-
-				std::hash_map< std::string, MemberRep* >::iterator iter = ifacemap.find(elementname.c_str());
-				if (iter != ifacemap.end())
-				{
-					MemberRep *mr = iter->second;
-
-					// if this is get, set type
-					if (fd->invkind == INVOKE_PROPERTYGET)
-					{
-						mr->type = rtype.c_str();
-						mr->mrflags |= MRFLAG_PROPGET;
-					}
-					else if (fd->invkind == INVOKE_PROPERTYPUT || fd->invkind == INVOKE_PROPERTYPUTREF)
-					{
-						mr->mrflags |= MRFLAG_PROPPUT;
-					}
-					else
-					{
-						// this should not happen
-						ATLTRACE("unexpected case mrflags\n");
-					}
-
-					ifacemap.erase(iter);
-					ifacemap.insert(std::pair< std::string, MemberRep* >(elementname, mr));
-				}
-				else
-				{
-					MemberRep *mr = new MemberRep();
-					mr->name = elementname.c_str();
-					mr->type = rtype.c_str();
-					if (fd->invkind == INVOKE_FUNC) mr->mrflags = MRFLAG_METHOD;
-					else if (fd->invkind == INVOKE_PROPERTYGET) mr->mrflags = MRFLAG_PROPGET;
-					else mr->mrflags = MRFLAG_PROPPUT;
-					ifacemap.insert(std::pair< std::string, MemberRep* >(elementname, mr));
-				}
-			}
-			typeinfo->ReleaseFuncDesc(fd);
-		}
-	}
-
-	{
-		std::hash_map< std::string, MemberRep* >::iterator iter = ifacemap.begin();
-		for (int i = 0; i< ifacemap.size(); i++)
-		{
-			MemberRep *mr = (iter++)->second;
-			ss << "\t\t\"" << mr->name << "\": { type:\"" << mr->type << "\", flags: " << mr->mrflags << " }";
-			if ( i < ifacemap.size() - 1 ) ss << ",";
-			ss << "\n";
-			delete mr;
-		}
-	}
-
-	ss << "\t}\n}";
-
-	output = ss.str();
-}
-
-void mapCoClass(std::string &output, std::string &name, CComPtr<ITypeInfo> typeinfo, TYPEATTR *pTatt)
-{
-	std::stringstream ss;
-
-	CComBSTR bstrName;
-	std::string elementname;
-	INT lImplTypeFlags;
-	HREFTYPE handle;
-	CComPtr< ITypeInfo > spTypeInfo2;
-
-	ss << "\"" << name.c_str() << "\": { \n";
-	ss << "\t\"type\": \"coclass\", \n";
-
-	// FIXME: could cache source GUIDs here, would save lookup later
-
-	for (UINT j = 0; j < pTatt->cImplTypes; j++)
-	{
-		HRESULT hr = typeinfo->GetImplTypeFlags(j, &lImplTypeFlags);
-		if (SUCCEEDED(hr)) hr = typeinfo->GetRefTypeOfImplType(j, &handle);
-		if (SUCCEEDED(hr)) hr = typeinfo->GetRefTypeInfo(handle, &spTypeInfo2);
-		if (SUCCEEDED(hr))
-		{
-			if (SUCCEEDED(spTypeInfo2->GetDocumentation(-1, &bstrName, 0, 0, 0)))
-			{
-				elementname.clear();
-				NarrowString(&bstrName, elementname);
-				if (lImplTypeFlags == 1) ss << "\t\"default\": \"" << elementname << "\"";
-				else ss << "\t\"source\": \"" << elementname << "\"";
-				if (j < pTatt->cImplTypes - 1) ss << ",";
-				ss << "\n";
-			}
-			spTypeInfo2 = 0;
-		}
-	}
-
-	ss << "}";
-	output = ss.str();
-
-}
-
-void mapEnum(std::string &output, std::string &name, CComPtr<ITypeInfo> typeinfo, TYPEATTR *pTatt, v8::Handle< v8::Context > context )
-{
-	std::stringstream ss;
-
-	VARDESC *vd = 0;
-	CComBSTR bstrName;
-	std::string elementname;
-
-	v8::Isolate * isolate = context->GetIsolate();
-	v8::Local<v8::ObjectTemplate> tmpl = v8::ObjectTemplate::New(isolate);
-
-
-	ss << "\"" << name.c_str() << "\": { \n";
-	ss << "\t\"type\": \"enum\", \n";
-	ss << "\t\"values\": { \n";
-
-	for (UINT u = 0; u < pTatt->cVars; u++)
-	{
-		vd = 0;
-		HRESULT hr = typeinfo->GetVarDesc(u, &vd);
-		if (SUCCEEDED(hr))
-		{
-			if (vd->varkind != VAR_CONST
-				|| vd->lpvarValue->vt != VT_I4)
-			{
-				ATLTRACE("enum type not const/I4\n");
-			}
-
-			elementname.clear();
-
-			hr = typeinfo->GetDocumentation(vd->memid, &bstrName, 0, 0, 0);
-			if (SUCCEEDED(hr))
-			{
-				NarrowString(&bstrName, elementname);
-				ss << "\t\t\"" << elementname << "\": ";
-				ss << vd->lpvarValue->intVal;
-				if (u < pTatt->cVars - 1) ss << ",";
-				ss << "\n";
-
-				tmpl->Set(v8::String::NewFromUtf8(isolate, elementname.c_str()), v8::Integer::New(isolate, vd->lpvarValue->intVal));
-
-			}
-			typeinfo->ReleaseVarDesc(vd);
-		}
-	}
-
-	ss << "\t}\n}";
-	output = ss.str();
-
-	v8::Local<v8::Object> inst = tmpl->NewInstance();
-	context->Global()->Set(v8::String::NewFromUtf8(isolate, name.c_str()), inst);
-
-
-}
-
 //-----------------------------------------------------------
 // exposed methods
 //-----------------------------------------------------------
+
+STDMETHODIMP CScripto::CleanUp()
+{
+	for (std::hash_map < long, void* > ::iterator iter = sink_map.begin();
+		iter != sink_map.end();
+		iter++)
+	{
+		CComObject<CCVEventHandler>* pSink = (CComObject<CCVEventHandler>*)(iter->second);
+		if (pSink)
+		{
+			pSink->Reset();
+			CComPtr<IUnknown> punk = 0;
+			pSink->QueryInterface(IID_IUnknown, (void**)&punk);
+			AtlUnadvise(punk, pSink->iid, pSink->cookie);
+			pSink->Release();
+		}
+	}
+	sink_map.clear();
+	return S_OK;
+}
 
 STDMETHODIMP CScripto::SetGlobal(BSTR *JSON)
 {
